@@ -17,6 +17,8 @@ jobs:
       run: npm ci
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
+    - name: Install Faker.js to define user factory functions
+      run: npm install -D @faker-js/faker
     - name: Run Playwright tests
       run: npx playwright test
     - uses: actions/upload-artifact@v4
