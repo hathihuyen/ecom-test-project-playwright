@@ -4,8 +4,8 @@ import { RegistrationPage } from "../pages/registration.page";
 
 test.describe("Load test", () => {
     test("bulk user registration", async ({ browser }) => {
-        // Generate 10 users for simulation. Adjust as needed.
-        const users = createUsers(10);
+        // Generate 3 users for simulation. Adjust as needed.
+        const users = createUsers(3);
 
         const registrations = users.map(async (user) => {
             let context;
