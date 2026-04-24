@@ -34,6 +34,17 @@ export default defineConfig({
     headless: true,
     video: "retain-on-failure",
     screenshot: "only-on-failure",
+    launchOptions: {
+      args: [
+        '--disable-dev-shm-usage', // Disable /dev/shm usage to prevent crashes in CI environments
+        '--no-sandbox', // Disable sandbox for better compatibility in CI environments
+        '--disable-blink-features=AutomationControlled' // Prevent detection of automation
+      ], 
+    },
+    extraHTTPHeaders: {
+      'Accept-Language': 'en-US,en;q=0.9', // Set default language for tests
+      'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36' // Set a consistent user agent
+    },
   },
 
   /* Configure projects for major browsers */
