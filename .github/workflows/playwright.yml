@@ -4,6 +4,8 @@ on:
     branches: [ main, master ]
   pull_request:
     branches: [ main, master ]
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 jobs:
   test:
     timeout-minutes: 60
@@ -18,7 +20,7 @@ jobs:
     - name: Install Playwright Browsers
       run: npx playwright install --with-deps
     - name: Install TypeScript
-      run: npx install -D typescript ts-node @types/node dotenv
+      run: npm install -D typescript ts-node @types/node dotenv
     - name: Install Faker.js to define user factory functions
       run: npm install -D @faker-js/faker
     - name: Run Playwright tests
