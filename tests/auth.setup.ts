@@ -12,7 +12,7 @@ setup('Create Customer 1 Authentication', async ( { page, context }) => {
 
     // Verify login was successful
     await expect(loginPage.navMenu).toContainText("Jane Doe");
-
+    await expect(loginPage.navMenu).toContainText("Sign Out");
     // Save storage state into the file.
     await context.storageState({ path: customer1AuthFile });
 });
