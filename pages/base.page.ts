@@ -35,12 +35,12 @@ export class BasePage {
         await this.navCategoryList.getByText(`${category}`).click();
     }
 
-    async clearStorage(page: Page) {
-        await page.evaluate(() => {
-            localStorage.clear();
-            sessionStorage.clear();
-        });
-        await page.context().clearCookies();
-        await page.reload();
-    }
+    // async clearStorage(page: Page) {
+    //     await page.evaluate(() => {
+    //         localStorage.clear();
+    //         sessionStorage.clear();
+    //     });
+    //     await page.context().clearCookies();
+    //     await page.reload();
+    // }
 }

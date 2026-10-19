@@ -1,11 +1,18 @@
 import { faker } from "@faker-js/faker";
+import { User } from "../types/user";
 
+/**
+ * Build a valid user. Any field passed in `overrides` replaces the generated value,
+ * e.g. createUser({ email: "specific@example.com"}).
+ * @param _overrides 
+ * @returns 
+ */
 /* If you’d like to set certain values yourself, the _overrides
 parameter lets you do just that. For instance,
 createUser({ email: 'specific@example.com' })
 locks in that email address while Faker.js fills in the rest of the details for you
 */
-export function createUser(_overrides = {}) {
+export function createUser(overrides: Partial<User> = {}): User {
     return {
         firstName: faker.person.firstName(),
         lastName: faker.person.lastName(),
@@ -20,6 +27,7 @@ export function createUser(_overrides = {}) {
         country: "United States of America (the)",
         phone: faker.string.numeric(10),
         dob: createDOB({ min: 18, max: 80}),
+        ...overrides, // <- this is the line that was missing before
     };
 }
 
@@ -29,17 +37,18 @@ export function createUser(_overrides = {}) {
  * @param {number} count - Number of users to generate
  * @returns {Array<object>} Array of user objects
  */
-export function createUsers(count: number): Array<object> {
-    return Array.from({ length: count }, () => createUser());
+export function createUsers(count: number, overrides: Partial<User> = {}): User[] {
+    return Array.from({ length: count }, () => createUser(overrides));
 }
 
-export function createInvalidUser() {
+export function createInvalidUser(): Pick<User, "firstName" | "dob" | "password"> {
     return {
         firstName: "", // Empty name
         dob: "1900", // Invalid format
         password: "123", // Too short
     };
 }
+// createDOB and createEdgeCaseUser stay the same; give createEdgeCaseUser a `: User` return type.
 
 export function createDOB(ageRange: { min: number, max: number}) {
     return faker.date

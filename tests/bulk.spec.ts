@@ -8,28 +8,28 @@ test.describe("Load test", () => {
         const users = createUsers(3);
 
         const registrations = users.map(async (user) => {
-            let context;
+            const context = await browser.newContext();
             try {
-                context = await browser.newContext();
                 const page = await context.newPage();
                 const registrationPage = new RegistrationPage(page);
                 await registrationPage.goto();
-                await registrationPage.fillPersonalInfo(
-                    user.firstName, 
-                    user.lastName, 
-                    user.dob
-                );
-                await registrationPage.fillAddressInfo(
-                    user.houseNumber, 
-                    user.streetAddress, 
-                    user.zip, 
-                    user.city, 
-                    user.state, 
-                    user.country
-                );
-                await registrationPage.fillContactInfo(user.phone, user.email);
-                await registrationPage.fillPassword(user.password);
-                await registrationPage.submitRegistration();
+                await registrationPage.registerUser(user);
+                // await registrationPage.fillPersonalInfo(
+                //     user.firstName, 
+                //     user.lastName, 
+                //     user.dob
+                // );
+                // await registrationPage.fillAddressInfo(
+                //     user.houseNumber, 
+                //     user.streetAddress, 
+                //     user.zip, 
+                //     user.city, 
+                //     user.state, 
+                //     user.country
+                // );
+                // await registrationPage.fillContactInfo(user.phone, user.email);
+                // await registrationPage.fillPassword(user.password);
+                // await registrationPage.submitRegistration();
 
                 console.log(
                     `Registering ${user.firstName} ${user.lastName} concurrently...`

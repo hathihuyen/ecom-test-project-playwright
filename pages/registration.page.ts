@@ -1,5 +1,6 @@
 import { Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
+import { User } from "../types/user";
 
 export class RegistrationPage extends BasePage {
     readonly firstNameInput: Locator;
@@ -73,22 +74,29 @@ export class RegistrationPage extends BasePage {
     }
 
     // Complete registration method that accepts a user object
-    async registerUser(user: {
-        firstName: string;
-        lastName: string;
-        dob: string;
-        houseNumber: string;
-        street: string;
-        zipcode: string;
-        city: string;
-        state: string;
-        country: string;
-        phone?: string;
-        email: string;
-        password: string;
-    }) {
+    async registerUser(user: User) {
+        // firstName: string;
+        // lastName: string;
+        // dob: string;
+        // houseNumber: string;
+        // street: string;
+        // zipcode: string;
+        // city: string;
+        // state: string;
+        // country: string;
+        // phone?: string;
+        // email: string;
+        // password: string;
+    // }) {
         await this.fillPersonalInfo(user.firstName, user.lastName, user.dob);
-        await this.fillAddressInfo(user.houseNumber, user.street, user.zipcode, user.city, user.state, user.country);
+        await this.fillAddressInfo(
+            user.houseNumber, 
+            user.streetAddress, 
+            user.zip, 
+            user.city, 
+            user.state, 
+            user.country
+        );
         await this.fillContactInfo(user.phone || "", user.email);
         await this.fillPassword(user.password);
         await this.submitRegistration();

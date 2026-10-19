@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { createUser, createInvalidUser, createDOB } from "../data/factory";
+import { createUser, createInvalidUser } from "../data/factory";
 import { RegistrationPage } from "../pages/registration.page";
 
 /**
@@ -9,44 +9,53 @@ import { RegistrationPage } from "../pages/registration.page";
  * 
  * Setting the storage state to undefined ensures each test runs in a logged-out browser context.
  */
-test.describe("Group tests before each test runs", async () => {
-    let user: any;
-    let invalidUser: any;
+test.describe("Registration", () => {
+    // Start every test logged out (overrides the project's customer storageState)
+    test.use({ storageState: { cookies: [], origins: []} });
+// test.describe("Group tests before each test runs", async () => {
+//     let user: any;
+//     let invalidUser: any;
 
-    test.use({ storageState: undefined });
-    test.beforeEach(async () => {
-        invalidUser = createInvalidUser();
-        user = createUser();
-    });
+//     test.use({ storageState: undefined });
+// storageState: undefined means "no override", so Playwright keeps using the project's customer-1 session.
+// An empty state actually clears it, which also makes clearStorate() unnecessary.
+//     test.beforeEach(async () => {
+//         invalidUser = createInvalidUser();
+//         user = createUser();
+//     });
     
     /**
      * Verify that a new user can register successfully and is redirected
      * to the login page afterward
      */
     test("Successful user registration and lands in login page", async ({ page }) => {
+        const user = createUser();
         const registrationPage = new RegistrationPage(page);
 
         await registrationPage.goto();
-        await registrationPage.clearStorage(page);
+        // await registrationPage.clearStorage(page);
+        await expect(registrationPage.navMenuSignIn).toBeVisible();
+        // proves we're logged out
 
-        await registrationPage.firstNameInput.fill(user.firstName);
-        await registrationPage.lastNameInput.fill(user.lastName);
-        await registrationPage.dobInput.fill(user.dob);
-        await registrationPage.houseNumberInput.fill(user.houseNumber);
-        await registrationPage.streetInput.fill(user.streetAddress);
-        await registrationPage.postalCodeInput.fill(user.zip);
-        await registrationPage.cityInput.fill(user.city);
-        await registrationPage.stateInput.fill(user.state);
-        await registrationPage.countryDropdown.selectOption({ label: user.country });
-        await registrationPage.phoneInput.fill(user.phone);
-        await registrationPage.emailInput.fill(user.email);
-        await registrationPage.passwordInput.fill(user.password);
+        // await registrationPage.firstNameInput.fill(user.firstName);
+        // await registrationPage.lastNameInput.fill(user.lastName);
+        // await registrationPage.dobInput.fill(user.dob);
+        // await registrationPage.houseNumberInput.fill(user.houseNumber);
+        // await registrationPage.streetInput.fill(user.streetAddress);
+        // await registrationPage.postalCodeInput.fill(user.zip);
+        // await registrationPage.cityInput.fill(user.city);
+        // await registrationPage.stateInput.fill(user.state);
+        // await registrationPage.countryDropdown.selectOption({ label: user.country });
+        // await registrationPage.phoneInput.fill(user.phone);
+        // await registrationPage.emailInput.fill(user.email);
+        // await registrationPage.passwordInput.fill(user.password);
 
         const responsePromise = page.waitForResponse( (response) => 
             response.url().includes("/users/register") && response.status() === 201
         );
 
-        await registrationPage.submitRegistration();
+        // await registrationPage.submitRegistration();
+        await registrationPage.registerUser(user);
         await responsePromise;
 
         await expect(page).toHaveURL(/auth\/login/);
@@ -56,10 +65,11 @@ test.describe("Group tests before each test runs", async () => {
     Invalid user and verify the error handling
     */
     test("Negative registration with invalid data", async ({ page }) => {
+        const invalidUser = createInvalidUser();
         const registrationPage = new RegistrationPage(page);
         await registrationPage.goto();
 
-        await registrationPage.clearStorage(page);
+        // await registrationPage.clearStorage(page);
 
         await registrationPage.firstNameInput.fill(invalidUser.firstName);
         await registrationPage.dobInput.fill(invalidUser.dob);

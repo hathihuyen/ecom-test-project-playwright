@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/adminAuth.fixture';
 import { ProductPage } from '../pages/product.page';
 
+// Can use test.use({ storageState: AUTH_FILES.admin }) at the top and use the normal page.
 test("Add product to cart", async ({ adminAuthPage }) => {
   const productPage = new ProductPage(adminAuthPage);
   await productPage.gotoHome();
