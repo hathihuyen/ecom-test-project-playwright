@@ -34,13 +34,4 @@ export class BasePage {
         await this.navMenuCategories.click();
         await this.navCategoryList.getByText(`${category}`).click();
     }
-
-    // async clearStorage(page: Page) {
-    //     await page.evaluate(() => {
-    //         localStorage.clear();
-    //         sessionStorage.clear();
-    //     });
-    //     await page.context().clearCookies();
-    //     await page.reload();
-    // }
 }

@@ -3,15 +3,13 @@ import { User } from "../types/user";
 
 /**
  * Build a valid user. Any field passed in `overrides` replaces the generated value,
- * e.g. createUser({ email: "specific@example.com"}).
- * @param _overrides 
+ * If you’d like to set certain values yourself, the _overrides
+ * parameter lets you do just that. For instance,
+ * createUser({ email: 'specific@example.com' })
+ * locks in that email address while Faker.js fills in the rest of the details for you
+ * @param overrides 
  * @returns 
  */
-/* If you’d like to set certain values yourself, the _overrides
-parameter lets you do just that. For instance,
-createUser({ email: 'specific@example.com' })
-locks in that email address while Faker.js fills in the rest of the details for you
-*/
 export function createUser(overrides: Partial<User> = {}): User {
     return {
         firstName: faker.person.firstName(),
@@ -26,7 +24,7 @@ export function createUser(overrides: Partial<User> = {}): User {
         // Toolshop requires specific countries
         country: "United States of America (the)",
         phone: faker.string.numeric(10),
-        dob: createDOB({ min: 18, max: 80}),
+        dob: createDOB({ min: 18, max: 75}),
         ...overrides, // <- this is the line that was missing before
     };
 }
@@ -41,6 +39,7 @@ export function createUsers(count: number, overrides: Partial<User> = {}): User[
     return Array.from({ length: count }, () => createUser(overrides));
 }
 
+// createDOB and createEdgeCaseUser stay the same; give createEdgeCaseUser a `: User` return type.
 export function createInvalidUser(): Pick<User, "firstName" | "dob" | "password"> {
     return {
         firstName: "", // Empty name
@@ -48,7 +47,6 @@ export function createInvalidUser(): Pick<User, "firstName" | "dob" | "password"
         password: "123", // Too short
     };
 }
-// createDOB and createEdgeCaseUser stay the same; give createEdgeCaseUser a `: User` return type.
 
 export function createDOB(ageRange: { min: number, max: number}) {
     return faker.date

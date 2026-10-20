@@ -75,19 +75,6 @@ export class RegistrationPage extends BasePage {
 
     // Complete registration method that accepts a user object
     async registerUser(user: User) {
-        // firstName: string;
-        // lastName: string;
-        // dob: string;
-        // houseNumber: string;
-        // street: string;
-        // zipcode: string;
-        // city: string;
-        // state: string;
-        // country: string;
-        // phone?: string;
-        // email: string;
-        // password: string;
-    // }) {
         await this.fillPersonalInfo(user.firstName, user.lastName, user.dob);
         await this.fillAddressInfo(
             user.houseNumber, 

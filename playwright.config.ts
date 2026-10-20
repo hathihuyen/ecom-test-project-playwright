@@ -60,7 +60,6 @@ export default defineConfig({
       use: { 
         ...devices['Desktop Chrome'],
         storageState: AUTH_FILES.customer1, // Load auth state. the setup project runs once before chromium, and each file is written exactly once. Every test reads the file and nothing writes to it during the run, so there is no race.
-        // storageState: ".auth/customer1StorageState.json", // Load auth state
       },
     },
 
