@@ -24,7 +24,7 @@ export function createUser(overrides: Partial<User> = {}): User {
         // Toolshop requires specific countries
         country: "United States of America (the)",
         phone: faker.string.numeric(10),
-        dob: createDOB({ min: 18, max: 75}),
+        dob: createDOB({ min: 18, max: 74 }),
         ...overrides, // <- this is the line that was missing before
     };
 }
