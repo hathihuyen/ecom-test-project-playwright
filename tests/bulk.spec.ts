@@ -13,7 +13,7 @@ test.describe("Load test", () => {
                 const page = await context.newPage();
                 const registrationPage = new RegistrationPage(page);
                 await registrationPage.goto();
-                await registrationPage.registerUser(user);
+                await registrationPage.register(user);
                 // await registrationPage.fillPersonalInfo(
                 //     user.firstName, 
                 //     user.lastName, 

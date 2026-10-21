@@ -1,6 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { createUser, createInvalidUser } from "../data/factory";
 import { RegistrationPage } from "../pages/registration.page";
+import { HeaderComponent } from "../components/header.component";
 
 /**
  * We group our tests with test.describe(). Before each test runs, we generate two types of user data:
@@ -20,18 +21,18 @@ test.describe("Registration", () => {
     test("Successful user registration and lands in login page", async ({ page }) => {
         const user = createUser();
         const registrationPage = new RegistrationPage(page);
+        const headerComponent = new HeaderComponent(page);
 
         await registrationPage.goto();
-        // await registrationPage.clearStorage(page);
-        await expect(registrationPage.navMenuSignIn).toBeVisible();
+        
+        await expect(headerComponent.signIn).toBeVisible();
         // proves we're logged out
 
         const responsePromise = page.waitForResponse( (response) => 
             response.url().includes("/users/register") && response.status() === 201
         );
 
-        // await registrationPage.submitRegistration();
-        await registrationPage.registerUser(user);
+        await registrationPage.register(user);
         await responsePromise;
 
         await expect(page).toHaveURL(/auth\/login/);
@@ -51,7 +52,7 @@ test.describe("Registration", () => {
         await registrationPage.dobInput.fill(invalidUser.dob);
         await registrationPage.passwordInput.fill(invalidUser.password);
 
-        await registrationPage.submitRegistration();
+        await registrationPage.submit();
 
         await expect(page.getByText("First name is required")).toBeVisible();
         await expect(page.getByText("Please enter a valid date")).toBeVisible();

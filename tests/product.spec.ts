@@ -1,18 +1,17 @@
 import { test, expect } from '../fixtures/adminAuth.fixture';
-import { ProductPage } from '../pages/product.page';
+import { ProductListPage } from '../pages/product-list.page';
+import { ProductDetailPage } from '../pages/product-detail.page';
 
-// Can use test.use({ storageState: AUTH_FILES.admin }) at the top and use the normal page.
 test("Add product to cart", async ({ adminAuthPage }) => {
-  const productPage = new ProductPage(adminAuthPage);
-  await productPage.gotoHome();
-  await productPage.selectCategory("Hand Tools");
-  await productPage.clickProductByIndex(0);
+  const productListPage = new ProductListPage(adminAuthPage);
+  const productDetailPage = new ProductDetailPage(adminAuthPage);
 
-  await expect(productPage.productName).toHaveText("Combination Pliers");
-  await productPage.addToCartButton.click();
-  await expect(productPage.addedToCartMessage).toHaveText("Product added to shopping cart.");
+  await productListPage.goto();
+  await productListPage.header.openCategory("hand-tools");
+  await productListPage.openProduct("Combination Pliers");
+  await expect(productDetailPage.productName).toHaveText("Combination Pliers");
 
-  // wait for the message to disappear (up to 10 seconds)
-  await expect(productPage.addedToCartMessage).not.toBeVisible({ timeout: 10000, });
-  await expect(productPage.navCartQuantity).toHaveText("1");
+  // Waits for the cart API call and for the "added to cart" toast to disappear
+  await productDetailPage.addToCart();
+  await expect(productDetailPage.header.cartQuantity).toHaveText("1");
 });

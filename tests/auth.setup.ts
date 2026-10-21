@@ -29,9 +29,7 @@ setup("Create Customer 1 Authentication", async ({ page, request }) => {
     // 2. Login through the UI and save the session
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await loginPage.login(customer.email, customer.password);
-    // Verify login was successful
-    await expect(loginPage.navMenu).toContainText(`${customer.firstName} ${customer.lastName}`);
+    await loginPage.loginAs(customer.email, customer.password, `${customer.firstName} ${customer.lastName}`);
     // Save storage state into the file.
     await page.context().storageState({ path: AUTH_FILES.customer1 });
 });
@@ -39,9 +37,7 @@ setup("Create Customer 1 Authentication", async ({ page, request }) => {
 setup("Create Admin Authentication", async ({ page }) => {
     const loginPage = new LoginPage(page);
     await loginPage.goto();
-    await loginPage.login(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!);
-    // Verify login was successful
-    await expect(loginPage.navMenu).toContainText("John Doe");
+    await loginPage.loginAs(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!, "John Doe");
     // Save storage state into the file.
     await page.context().storageState({ path: AUTH_FILES.admin });
 });

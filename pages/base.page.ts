@@ -1,37 +1,16 @@
-// ./pages/base.page.ts
 import { Page, Locator } from '@playwright/test';
+import { HeaderComponent } from "../components/header.component";
 
-export class BasePage {
-    readonly page: Page;
-    readonly navMenu: Locator;
-    readonly navMenuHome: Locator;
-    readonly navMenuCategories: Locator;
-    readonly navCategoryList: Locator;
-    readonly navMenuContact: Locator;
-    readonly navMenuSignIn: Locator;
-    readonly navMenuLanguageSelect: Locator;
-    readonly navCart: Locator;
-    readonly navCartQuantity: Locator;
+/**
+ * page is now protected, so tests can't bypass the page object.
+ * When a test need page (for example for toHaveURL), it takes it from the fixture.
+ */
+export abstract class BasePage {
+    readonly header: HeaderComponent;
 
-    constructor(page: Page) {
-        this.page = page;
-        this.navMenu = page.getByTestId("nav-menu");
-        this.navMenuHome = page.getByTestId("nav-home");
-        this.navMenuCategories = page.getByTestId("nav-categories");
-        this.navCategoryList = page.getByLabel("nav-categories");
-        this.navMenuContact = page.getByTestId("nav-contact");
-        this.navMenuSignIn = page.getByTestId("nav-sign-in");
-        this.navMenuLanguageSelect = page.getByTestId("language-select");
-        this.navCart = page.getByTestId("nav-cart");
-        this.navCartQuantity = page.getByTestId("cart-quantity");
+    constructor(protected readonly page: Page) {
+        this.header = new HeaderComponent(page);
     }
 
-    async gotoHome() {
-        await this.page.goto("/");
-    }
-
-    async selectCategory(category: string) {
-        await this.navMenuCategories.click();
-        await this.navCategoryList.getByText(`${category}`).click();
-    }
+    abstract goto(...args: string[]): Promise<void>;
 }
