@@ -22,9 +22,9 @@ export function createUser(overrides: Partial<User> = {}): User {
         state: faker.location.state(),
         zip: faker.location.zipCode("#####"),
         // Toolshop requires specific countries
-        country: "United States of America (the)",
+        country: "US", // option value; works for both the UI dropdown and the API
         phone: faker.string.numeric(10),
-        dob: createDOB({ min: 18, max: 74 }),
+        dob: createDOB({ min: 18, max: 74 }), // API only accepts ages 18-75 (was 80 -> random failures)
         ...overrides, // <- this is the line that was missing before
     };
 }
@@ -60,5 +60,13 @@ export function createEdgeCaseUser() {
         ...createUser(),
         firstName: faker.string.alpha({ length: 50 }),
         email: `test+${faker.string.alphanumeric(100)}@test.com`,
+    };
+}
+
+export function createBoundaryUser(): User {
+    return {
+        ...createUser(),
+        firstName: faker.string.alpha({ length: 40 }),
+        lastName: faker.string.alpha({ length: 20 }),
     };
 }

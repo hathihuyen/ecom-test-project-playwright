@@ -1,4 +1,4 @@
-import { Locator, Page, Response } from "@playwright/test";
+import { Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
 import { ROUTES } from "../config/routes";
 import { User } from "../types/user";
@@ -6,6 +6,12 @@ import { User } from "../types/user";
 export type RegistrationField =
     | "first-name" | "last-name" | "dob" | "country" | "postal_code" | "house_number"
     | "street" | "city" | "state" | "phone" | "email" | "password";
+
+export type RegistrationResult = {
+    status: number;
+    /** Id of the created user (only on success) */
+    userId?: string;
+};
 
 export class RegistrationPage extends BasePage {
     readonly firstNameInput: Locator;
@@ -43,37 +49,6 @@ export class RegistrationPage extends BasePage {
         await this.page.goto(ROUTES.register);
     }
 
-    // async fillPersonalInfo(firstname: string, lastname: string, dob: string) {
-    //     await this.firstNameInput.fill(firstname);
-    //     await this.lastNameInput.fill(lastname);
-    //     await this.dobInput.fill(dob);
-    // }
-
-    // async fillAddressInfo(
-    //     houseNumber: string,
-    //     street: string, 
-    //     postalCode: string, 
-    //     city: string,
-    //     state: string, 
-    //     country: string
-    // ) {
-    //     await this.houseNumberInput.fill(houseNumber);
-    //     await this.streetInput.fill(street);
-    //     await this.postalCodeInput.fill(postalCode);
-    //     await this.cityInput.fill(city);
-    //     await this.stateInput.fill(state);
-    //     await this.countryDropdown.selectOption({ label: country});
-    // }
-
-    // async fillContactInfo(phone: string, email: string) {
-    //     await this.phoneInput.fill(phone);
-    //     await this.emailInput.fill(email);
-    // }
-
-    // async fillPassword(password: string) {
-    //     await this.passwordInput.fill(password);
-    // }
-
     /** Fill only the fields present in `user` (lets negative tests leave fields empty). */
     async fillForm(user: Partial<User>) {
         const fields: [Locator, string | undefined][] = [
@@ -99,33 +74,34 @@ export class RegistrationPage extends BasePage {
         await this.submitButton.click();
     }
 
-    /** Fill and submit the form; returns the API response so the test can assert on it. */
-    async register(user: User): Promise<Response> {
-        const responsePromise = this.page.waitForResponse(
-            (r) => r.url().includes("/users/register") && r.request().method() === "POST"
-        );
+    /** 
+     * Fill and submit the form; returns the API status and the new user's id.
+     * The response is captured with route.fetch() because the app redirects to /auth/login
+     * straight away, and the browser drops response bodies of the page it navigates away from.
+     */
+    async register(user: User): Promise<RegistrationResult> {
+        let resolveResult!: (result: RegistrationResult) => void;
+        const result = new Promise<RegistrationResult>((resolve) => (resolveResult = resolve));
+
+        /**
+         * Instead of just watching the response, register() intercepts the request
+         * with page.route. Playwright then makes the request itself with route.fetch(), so Playwright
+         * holds the body regardless of what the page does. It reads the body, then passes
+         * the response on to the page unchanged with route.fulfill().
+         */
+        await this.page.route("**/users/register", async (route) => {
+            const response = await route.fetch();
+            const body = await response.json().catch(() => ({}));
+            await route.fulfill({ response });
+            resolveResult({ status: response.status(), userId: body.id });
+        }, { times: 1 });
+
         await this.fillForm(user);
         await this.submit();
-        return responsePromise;
+        return result;
     }
 
     fieldError(field: RegistrationField): Locator {
         return this.page.getByTestId(`${field}-error`);
     }
-
-    // Complete registration method that accepts a user object
-    // async registerUser(user: User) {
-    //     await this.fillPersonalInfo(user.firstName, user.lastName, user.dob);
-    //     await this.fillAddressInfo(
-    //         user.houseNumber, 
-    //         user.streetAddress, 
-    //         user.zip, 
-    //         user.city, 
-    //         user.state, 
-    //         user.country
-    //     );
-    //     await this.fillContactInfo(user.phone || "", user.email);
-    //     await this.fillPassword(user.password);
-    //     await this.submit();
-    // }
 }
