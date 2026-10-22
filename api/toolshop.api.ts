@@ -45,6 +45,19 @@ export class ToolshopApi {
         return (await response.json()).access_token;
     }
 
+    /** First product in the category that is in stock right now (stock on the demo site changes all day). */
+    async findInStockProduct(categorySlug: string): Promise<{ id: string; name: string }> {
+        const response = await this.request.get(`${env.apiUrl}/products`, {
+            params: { by_category_slug: categorySlug, is_rental: "false" },
+        });
+        expect(response.status(), `Product search failed: ${await response.text()}`).toBe(200);
+
+        const { data } = await response.json();
+        const product = data.find((p: { in_stock: boolean }) => p.in_stock);
+        if (!product) throw new Error(`No in-stock product found in category "${categorySlug}"`);
+        return { id: product.id, name: product.name };
+    }
+
     /** Admin only. Never fails the test: a user with orders cannot be deleted (409). */
     async deleteUser(userId: string, adminToken: string) {
         const response = await this.request.delete(`${env.apiUrl}/users/${userId}`, {

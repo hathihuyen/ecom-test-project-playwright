@@ -23,7 +23,8 @@ setup("authenticate customer", async ({ api, loginPage, page }) => {
 
 setup("authenticate admin", async ({ loginPage, page }) => {
     await loginPage.goto();
-    await loginPage.loginAs(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!, ADMIN_DISPLAY_NAME);
+    //await loginPage.loginAs(process.env.ADMIN_EMAIL!, process.env.ADMIN_PASSWORD!, ADMIN_DISPLAY_NAME);
+    await loginPage.loginAs(env.adminEmail, env.adminPassword, ADMIN_DISPLAY_NAME);
     // Save storage state into the file.
     await page.context().storageState({ path: AUTH_FILES.admin });
 });
