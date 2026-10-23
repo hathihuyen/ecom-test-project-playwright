@@ -17,24 +17,39 @@ type Fixtures = {
 };
 
 export const test = base.extend<Fixtures>({
-    loginPage: async ({ page }, use) => { await use(new LoginPage(page)); },
-    registrationPage: async ({ page }, use) => { await use(new RegistrationPage(page)); },
-    productListPage: async ({ page }, use) => { await use(new ProductListPage(page)); },
-    productDetailPage: async ({ page }, use) => { await use(new ProductDetailPage(page)); },
-    api: async ({ request }, use) => { await use(new ToolshopApi(request)); },
+    loginPage: async ({ page }, use) => {
+        await use(new LoginPage(page));
+    },
+    registrationPage: async ({ page }, use) => {
+        await use(new RegistrationPage(page));
+    },
+    productListPage: async ({ page }, use) => {
+        await use(new ProductListPage(page));
+    },
+    productDetailPage: async ({ page }, use) => {
+        await use(new ProductDetailPage(page));
+    },
+    api: async ({ request }, use) => {
+        await use(new ToolshopApi(request));
+    },
     cleanupUsers: async ({ api }, use) => {
         const ids: string[] = [];
         await use(ids);
         if (ids.length === 0) return;
-        const adminToken = await api.login(env.adminEmail, env.adminPassword);
-        for (const id of ids) await api.deleteUser(id, adminToken);
+        try {
+            const adminToken = await api.login(env.adminEmail, env.adminPassword);
+            for (const id of ids) await api.deleteUser(id, adminToken);
+        } catch (error) {
+            // Cleanup is best-effort: the demo DB may be resetting, which removes the user anyway
+            console.warn(`Cleanup: could not delete test users ${ids.join(", ")}: ${(error as Error).message}`);
+        }
     },
 });
 
 export { expect } from "@playwright/test";
 
 /**
- * No longer need an adminAuthPage fiture. Put test.use({ storageState: AUTH_FILES.admin });
+ * No longer need an adminAuthPage fixture. Put test.use({ storageState: AUTH_FILES.admin });
  * at the top of any admin spec. The normal page, and every page-object fixture,
  * will then be logged in as admin.
  * One fixture file is enough at this size. When it grows past about 150 lines, split

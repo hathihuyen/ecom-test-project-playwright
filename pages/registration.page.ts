@@ -4,8 +4,18 @@ import { ROUTES } from "@config/routes";
 import { User } from "@models/user";
 
 export type RegistrationField =
-    | "first-name" | "last-name" | "dob" | "country" | "postal_code" | "house_number"
-    | "street" | "city" | "state" | "phone" | "email" | "password";
+    | "first-name"
+    | "last-name"
+    | "dob"
+    | "country"
+    | "postal_code"
+    | "house_number"
+    | "street"
+    | "city"
+    | "state"
+    | "phone"
+    | "email"
+    | "password";
 
 export type RegistrationResult = {
     status: number;
@@ -74,7 +84,7 @@ export class RegistrationPage extends BasePage {
         await this.submitButton.click();
     }
 
-    /** 
+    /**
      * Fill and submit the form; returns the API status and the new user's id.
      * The response is captured with route.fetch() because the app redirects to /auth/login
      * straight away, and the browser drops response bodies of the page it navigates away from.
@@ -89,12 +99,16 @@ export class RegistrationPage extends BasePage {
          * holds the body regardless of what the page does. It reads the body, then passes
          * the response on to the page unchanged with route.fulfill().
          */
-        await this.page.route("**/users/register", async (route) => {
-            const response = await route.fetch();
-            const body = await response.json().catch(() => ({}));
-            await route.fulfill({ response });
-            resolveResult({ status: response.status(), userId: body.id });
-        }, { times: 1 });
+        await this.page.route(
+            "**/users/register",
+            async (route) => {
+                const response = await route.fetch();
+                const body = await response.json().catch(() => ({}));
+                await route.fulfill({ response });
+                resolveResult({ status: response.status(), userId: body.id });
+            },
+            { times: 1 },
+        );
 
         await this.fillForm(user);
         await this.submit();

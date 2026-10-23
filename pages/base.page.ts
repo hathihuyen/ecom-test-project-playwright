@@ -1,4 +1,4 @@
-import { Page } from '@playwright/test';
+import { Page } from "@playwright/test";
 import { HeaderComponent } from "@components/header.component";
 
 /**

@@ -6,8 +6,8 @@ import { User } from "@models/user";
  * If you’d like to set certain values yourself, the _overrides
  * parameter lets you do just that. For instance, createUser()
  * locks in that email address while Faker.js fills in the rest of the details for you
- * @param overrides 
- * @returns 
+ * @param overrides
+ * @returns
  */
 export function createUser(overrides: Partial<User> = {}): User {
     return {
@@ -30,7 +30,7 @@ export function createUser(overrides: Partial<User> = {}): User {
 
 /**
  * Create an array of user objects.
- * 
+ *
  * @param {number} count - Number of users to generate
  * @returns {User[]} Array of user objects
  */
@@ -46,11 +46,8 @@ export function createInvalidUser(): Pick<User, "firstName" | "dob" | "password"
     };
 }
 
-export function createDOB(ageRange: { min: number, max: number}) {
-    return faker.date
-    .birthdate({ min: ageRange.min, max: ageRange.max, mode: "age" })
-    .toISOString()
-    .split("T")[0];
+export function createDOB(ageRange: { min: number; max: number }) {
+    return faker.date.birthdate({ min: ageRange.min, max: ageRange.max, mode: "age" }).toISOString().split("T")[0];
 }
 
 export function createBoundaryUser(): User {

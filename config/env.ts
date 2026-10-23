@@ -10,7 +10,9 @@ dotenv.config({ path: path.resolve(__dirname, "../.env"), quiet: true });
 function required(name: string): string {
     const value = process.env[name];
     if (!value) {
-        throw new Error(`Missing environment variable "${name}". Add it to .env (see .env.example) or to the CI secrets.`);
+        throw new Error(
+            `Missing environment variable "${name}". Add it to .env (see .env.example) or to the CI secrets.`,
+        );
     }
     return value;
 }
@@ -19,6 +21,10 @@ export const env = {
     baseUrl: process.env.BASE_URL || "https://practicesoftwaretesting.com",
     apiUrl: process.env.API_URL || "https://api.practicesoftwaretesting.com",
     // Getters: only throw when a test actually needs the value
-    get adminEmail() { return required("ADMIN_EMAIL"); },
-    get adminPassword() { return required("ADMIN_PASSWORD"); },
+    get adminEmail() {
+        return required("ADMIN_EMAIL");
+    },
+    get adminPassword() {
+        return required("ADMIN_PASSWORD");
+    },
 };

@@ -7,7 +7,7 @@ export class LoginPage extends BasePage {
     readonly passwordInput: Locator;
     readonly loginButton: Locator;
     readonly errorMessage: Locator;
-    
+
     constructor(page: Page) {
         super(page);
         this.emailInput = page.getByTestId("email");

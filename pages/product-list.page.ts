@@ -11,7 +11,7 @@ export class ProductListPage extends BasePage {
     }
 
     async goto() {
-        await this.page.goto(ROUTES.home)
+        await this.page.goto(ROUTES.home);
     }
 
     productCard(name: string): Locator {

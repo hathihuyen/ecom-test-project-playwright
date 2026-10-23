@@ -4,7 +4,7 @@ import { User } from "@models/user";
 
 /**
  * The field names follow the API's own documentation at api.practicesoftwaretesting.com/api/documentation.
- * Purpose of this: 
+ * Purpose of this:
  * 1. Arrange test data through the API. Create users, login and empty carts by calling
  * the API directly. Keeps the UI only for the behaviour under test. This is the biggest gain in speed
  * and stability once the suite grows.

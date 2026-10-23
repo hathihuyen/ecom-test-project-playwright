@@ -22,7 +22,7 @@ export class ProductDetailPage extends BasePage {
     /** Click "Add to cart" and wait until the cart call finished and the toast went away. */
     async addToCart() {
         const cartCall = this.page.waitForResponse(
-            (r) => /\/carts\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "POST"
+            (r) => /\/carts\/[^/]+$/.test(new URL(r.url()).pathname) && r.request().method() === "POST",
         );
         await this.addToCartButton.click();
         await cartCall;
