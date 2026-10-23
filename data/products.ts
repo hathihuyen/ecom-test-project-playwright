@@ -1,4 +1,4 @@
-import { Category } from "../components/header.component";
+import { Category } from "@components/header.component";
 
 /**
  * This is not being used right now. Keep this if we plan tests that need a specific product

@@ -1,7 +1,7 @@
 import { expect, Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
-import { ROUTES } from "../config/routes";
-import { TIMEOUTS } from "../config/timeouts";
+import { ROUTES } from "@config/routes";
+import { TIMEOUTS } from "@config/timeouts";
 
 export class ProductDetailPage extends BasePage {
     readonly productName: Locator;

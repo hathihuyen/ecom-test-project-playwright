@@ -1,7 +1,7 @@
 import { Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
-import { ROUTES } from "../config/routes";
-import { User } from "../types/user";
+import { ROUTES } from "@config/routes";
+import { User } from "@models/user";
 
 export type RegistrationField =
     | "first-name" | "last-name" | "dob" | "country" | "postal_code" | "house_number"

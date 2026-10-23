@@ -1,6 +1,6 @@
-import { test, expect } from "../../fixtures";
-import { createUsers } from "../../data/factory";
-import { RegistrationPage } from "../../pages/registration.page";
+import { test, expect } from "@fixtures";
+import { createUsers } from "@data/factory";
+import { RegistrationPage } from "@pages/registration.page";
 
 test.describe("Concurrent registration", { tag: "@stress"}, () => {
     test("several users can register at the same time", async ({ browser, cleanupUsers }) => {

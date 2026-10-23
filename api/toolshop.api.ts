@@ -1,6 +1,6 @@
 import { APIRequestContext, expect } from "@playwright/test";
-import { env } from "../config/env";
-import { User } from "../types/user";
+import { env } from "@config/env";
+import { User } from "@models/user";
 
 /**
  * The field names follow the API's own documentation at api.practicesoftwaretesting.com/api/documentation.
@@ -14,7 +14,7 @@ import { User } from "../types/user";
 export class ToolshopApi {
     constructor(private readonly request: APIRequestContext) {}
 
-    /** Register a user directly through the API; returns the new user's id. */
+    // Register a user directly through the API; returns the new user's id.
     async registerUser(user: User): Promise<string> {
         const response = await this.request.post(`${env.apiUrl}/users/register`, {
             data: {
@@ -38,14 +38,14 @@ export class ToolshopApi {
         return (await response.json()).id;
     }
 
-    /** Returns a Bearer token. */
+    // Returns a Bearer token.
     async login(email: string, password: string): Promise<string> {
         const response = await this.request.post(`${env.apiUrl}/users/login`, { data: { email, password } });
         expect(response.status(), `Login failed for ${email}: ${await response.text()}`).toBe(200);
         return (await response.json()).access_token;
     }
 
-    /** First product in the category that is in stock right now (stock on the demo site changes all day). */
+    // First product in the category that is in stock right now (stock on the demo site changes all day).
     async findInStockProduct(categorySlug: string): Promise<{ id: string; name: string }> {
         const response = await this.request.get(`${env.apiUrl}/products`, {
             params: { by_category_slug: categorySlug, is_rental: "false" },
@@ -58,7 +58,7 @@ export class ToolshopApi {
         return { id: product.id, name: product.name };
     }
 
-    /** Admin only. Never fails the test: a user with orders cannot be deleted (409). */
+    // Admin only. Never fails the test: a user with orders cannot be deleted (409).
     async deleteUser(userId: string, adminToken: string) {
         const response = await this.request.delete(`${env.apiUrl}/users/${userId}`, {
             headers: { Authorization: `Bearer ${adminToken}` },

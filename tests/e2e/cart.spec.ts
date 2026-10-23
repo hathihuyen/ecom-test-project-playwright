@@ -1,4 +1,4 @@
-import { test, expect } from '../../fixtures';
+import { test, expect } from "@fixtures";
 
 /**
  * Adding to the cart is a customer feature, so the test uses the default

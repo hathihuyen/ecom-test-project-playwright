@@ -1,5 +1,5 @@
-import { Page, Locator } from '@playwright/test';
-import { HeaderComponent } from "../components/header.component";
+import { Page } from '@playwright/test';
+import { HeaderComponent } from "@components/header.component";
 
 /**
  * page is now protected, so tests can't bypass the page object.

@@ -1,6 +1,6 @@
 import { Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
-import { ROUTES } from "../config/routes";
+import { ROUTES } from "@config/routes";
 
 export class ProductListPage extends BasePage {
     readonly productCards: Locator;

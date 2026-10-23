@@ -1,7 +1,7 @@
 import fs from "fs";
-import { test as teardown } from "../../fixtures";
-import { AUTH_FILES } from "../../config/auth";
-import { env } from "../../config/env";
+import { test as teardown } from "@fixtures";
+import { AUTH_FILES } from "@config/auth";
+import { env } from "@config/env";
 
 teardown("delete setup customer", async ({ api }) => {
     if (!fs.existsSync(AUTH_FILES.customer1User)) return;

@@ -1,10 +1,10 @@
 import { test as base } from "@playwright/test";
-import { LoginPage } from "../pages/login.page";
-import { RegistrationPage } from "../pages/registration.page";
-import { ProductListPage } from "../pages/product-list.page";
-import { ProductDetailPage } from "../pages/product-detail.page";
-import { ToolshopApi } from "../api/toolshop.api";
-import { env } from "../config/env";
+import { LoginPage } from "@pages/login.page";
+import { RegistrationPage } from "@pages/registration.page";
+import { ProductListPage } from "@pages/product-list.page";
+import { ProductDetailPage } from "@pages/product-detail.page";
+import { ToolshopApi } from "@api/toolshop.api";
+import { env } from "@config/env";
 
 type Fixtures = {
     loginPage: LoginPage;

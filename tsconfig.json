@@ -4,7 +4,17 @@
         "module": "commonjs",
         "strict": true,
         "esModuleInterop": true,
-        "skipLibCheck": true
+        "skipLibCheck": true,
+        "noEmit": true,
+        "paths": {
+            "@api/*": ["./api/*"],
+            "@components/*": ["./components/*"],
+            "@config/*": ["./config/*"],
+            "@data/*": ["./data/*"],
+            "@fixtures": ["./fixtures/index.ts"],
+            "@pages/*": ["./pages/*"],
+            "@models/*": ["./types/*"] // use @models as @types/... is reserved for npm type packages.
+        }
     },
     "include": ["**/*.ts"],
     "exclude": ["node_modules", "playwright-report", "test-results"]

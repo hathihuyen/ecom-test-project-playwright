@@ -1,5 +1,5 @@
-import { test, expect } from "../../fixtures";
-import { createUser, createInvalidUser } from "../../data/factory";
+import { test, expect } from "@fixtures";
+import { createUser, createInvalidUser } from "@data/factory";
 
 /**
  * Registration flows. Every test starts logged out.
