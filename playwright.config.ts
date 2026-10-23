@@ -20,7 +20,7 @@ export default defineConfig({
     /* Fail the build on CI if you accidentally left test.only in the source code. */
     forbidOnly: isCI, // Prevent 'test.only' in CI
     /* Retry on CI only */
-    retries: isCI ? 2 : 0, // Retry failed tests in CI
+    retries: isCI ? 2 : 1, // Retry failed tests in CI; 1 retry for local runs
     /* Low on CI: shared public site */
     workers: isCI ? 2 : undefined, // kept it low because this is a public demo site behind Cloudflare.
     timeout: TIMEOUTS.test,

@@ -14,8 +14,8 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-env:
-    FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+# env:
+#     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 jobs:
     quality:
@@ -23,8 +23,8 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 10
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+            - uses: actions/setup-node@v7
               with:
                   node-version-file: .nvmrc
                   cache: npm
@@ -39,33 +39,62 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 30
         env:
-            ALL_BROWSERS: ${{ github.event_name == 'schedule' && '1' || '' }}
+            FALL_BROWSERS: ${{ github.event_name == 'schedule' && '1' || '' }}
+            # Private copy of the Toolshop (no Cloudflare, no hourly resets)
+            # SPRINT: sprint5
+            # DISABLE_LOGGING: "true"
+            # TOOLSHOP_REF: ae7caecb811dd8952c09d997e69be7cb946ecd44 # pinned commit of testsmith-io/practice-software-testing
+            COMPOSE: docker compose -f docker/toolshop-compose.yml
         steps:
-            - uses: actions/checkout@v4
-            - uses: actions/setup-node@v4
+            - uses: actions/checkout@v7
+
+            - name: Start Toolshop containers
+              run:
+                  # No "cron" service: it would reset the database during the run
+                  $COMPOSE up -d --build --quiet-pull
+
+            - uses: actions/setup-node@v7
               with:
                   node-version-file: .nvmrc
                   cache: npm
             - run: npm ci
             - name: Install Playwright browsers
               run: npx playwright install --with-deps ${{ env.ALL_BROWSERS && 'chromium firefox webkit' || 'chromium' }}
+
+            - name: Create and seed the Toolshop database
+              run: |
+                  timeout 120 bash -c "until $COMPOSE exec -T mariadb mysqladmin ping -h localhost -u root -proot --silent; do sleep 2; done"
+                  $COMPOSE exec -T laravel-api php artisan migrate:fresh --seed --force
+
+            - name: Wait for Toolshop API and UI
+              run: |
+                  timeout 300 bash -c 'until curl -sf http://localhost:8091/status > /dev/null; do sleep 5; done'
+                  timeout 300 bash -c 'until curl -sf -o /dev/null http://localhost:4200; do sleep 5; done'
+
             - name: Run Playwright tests
               run: npx playwright test
               env:
-                  BASE_URL: ${{ vars.BASE_URL }}
+                  BASE_URL: http://localhost:4200
+                  API_URL: http://localhost:8091
                   ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
                   ADMIN_PASSWORD: ${{ secrets.ADMIN_PASSWORD }}
+
+            - name: Save Toolshop logs
+              if: ${{ failure() }}
+              run: $COMPOSE logs --no-color > test-results/toolshop-containers.log 2>&1 || true
+
             - name: Upload HTML report
               if: ${{ !cancelled() }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: playwright-report-${{ github.run_attempt }}
                   path: playwright-report/
                   retention-days: 14
-            - name: Upload traces and videos of failed tests
+            - name: Upload traces, videos and container logs
               if: ${{ failure() }}
-              uses: actions/upload-artifact@v4
+              uses: actions/upload-artifact@v7
               with:
                   name: test-results-${{ github.run_attempt }}
                   path: test-results/
                   retention-days: 7
+
