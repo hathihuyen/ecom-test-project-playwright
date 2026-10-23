@@ -4,10 +4,16 @@
 ![Playwright](https://img.shields.io/badge/Playwright-1.59-2EAD33?logo=playwright&logoColor=white)
 ![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?logo=typescript&logoColor=white)
 ![Node](https://img.shields.io/badge/Node-22-339933?logo=node.js&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-Compose-2496ED?logo=docker&logoColor=white)
 
 End-to-end test automation for the [Practice Software Testing – Toolshop](https://practicesoftwaretesting.com), a demo e-commerce web shop, built with **Playwright** and **TypeScript**.
 
 The framework tests the **UI** like a real customer would. It uses the shop's **REST API** to prepare and clean up test data quickly and reliably. Each test run creates its own user accounts and data and deletes them afterwards. Shared demo accounts, product stock or leftover state from earlier runs can't make it fail.
+
+The same suite runs against two targets with no code changes:
+
+- the **public live site**, the default for quick local runs, or
+- a **private copy of the Toolshop in Docker**, used by CI and available locally. It has no bot protection, no scheduled data resets and no other users.
 
 ---
 
@@ -16,36 +22,38 @@ The framework tests the **UI** like a real customer would. It uses the shop's **
 1. [Highlights](#highlights)
 2. [Tech stack](#tech-stack)
 3. [Quick start](#quick-start)
-4. [Running tests](#running-tests)
-5. [How it works](#how-it-works)
-6. [Project structure](#project-structure)
-7. [Architecture & design decisions](#architecture--design-decisions)
-8. [Test coverage](#test-coverage)
-9. [Writing a new test](#writing-a-new-test)
-10. [Conventions](#conventions)
-11. [Reports & debugging](#reports--debugging)
-12. [Continuous integration](#continuous-integration)
-13. [Configuration reference](#configuration-reference)
-14. [Troubleshooting](#troubleshooting)
-15. [Roadmap](#roadmap)
+4. [Test environments: live site vs Docker](#test-environments-live-site-vs-docker)
+5. [Running tests](#running-tests)
+6. [How it works](#how-it-works)
+7. [Project structure](#project-structure)
+8. [Architecture & design decisions](#architecture--design-decisions)
+9. [Test coverage](#test-coverage)
+10. [Writing a new test](#writing-a-new-test)
+11. [Conventions](#conventions)
+12. [Reports & debugging](#reports--debugging)
+13. [Continuous integration](#continuous-integration)
+14. [Configuration reference](#configuration-reference)
+15. [Troubleshooting](#troubleshooting)
+16. [Roadmap](#roadmap)
 
 ---
 
 ## Highlights
 
-|                                    |                                                                                                                       |
-| ---------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| **Page Object Model + components** | Pages hold locators and user actions. Shared UI such as the nav bar is a reusable component.                          |
-| **Custom fixtures**                | Tests ask for `registrationPage`, `api` and so on, and get ready-to-use objects. Nothing needs `new` inside a test.   |
-| **API-first test data**            | Users are created through the REST API in about a second. The UI is used only for the behaviour under test.           |
-| **Self-cleaning**                  | Every user a test creates is deleted afterwards, by a fixture or by a teardown project.                               |
-| **Login once, reuse everywhere**   | A `setup` project logs in once and saves the session. All tests start already signed in.                              |
-| **Isolated runs**                  | Each run uses a fresh customer account, so lockouts and database resets on the shared demo site can't break it.       |
-| **Resilient to live data**         | Products are chosen at runtime by asking the API what is in stock. No hard-coded ids or names.                        |
-| **Typed end to end**               | Strict TypeScript, a shared `User` model, typed page objects and typed environment config.                            |
-| **Tag-based suites**               | `@smoke`, `@regression` and `@stress` let you run exactly the subset you need.                                        |
-| **Quality gates**                  | Type check, ESLint (including Playwright rules and missing-`await` detection) and Prettier run in CI before any test. |
-| **Rich failure evidence**          | Each failed test keeps a trace, a video and a screenshot. CI also writes JUnit results and GitHub annotations.        |
+|                                    |                                                                                                                                  |
+| ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
+| **Page Object Model + components** | Pages hold locators and user actions. Shared UI such as the nav bar is a reusable component.                                     |
+| **Custom fixtures**                | Tests ask for `registrationPage`, `api` and so on, and get ready-to-use objects. Nothing needs `new` inside a test.              |
+| **API-first test data**            | Users are created through the REST API in about a second. The UI is used only for the behaviour under test.                      |
+| **Self-cleaning**                  | Every user a test creates is deleted afterwards, by a fixture or by a teardown project. Cleanup never fails a run.               |
+| **Login once, reuse everywhere**   | A `setup` project logs in once and saves the session. All tests start already signed in.                                         |
+| **Isolated runs**                  | Each run uses a fresh customer account, so lockouts and database resets on the shared demo site can't break it.                  |
+| **Self-contained CI**              | CI starts its own Toolshop in Docker (pinned to app version 2.5), seeds it, and tests that copy rather than the public internet. |
+| **Resilient to live data**         | Products are chosen at runtime by asking the API what is in stock. No hard-coded ids or names.                                   |
+| **Typed end to end**               | Strict TypeScript, a shared `User` model, typed page objects and typed environment config.                                       |
+| **Tag-based suites**               | `@smoke`, `@regression` and `@stress` let you run exactly the subset you need.                                                   |
+| **Quality gates**                  | Type check, ESLint (including Playwright rules and missing-`await` detection) and Prettier run in CI before any test.            |
+| **Rich failure evidence**          | Each failed test keeps a trace, a video and a screenshot. CI also saves JUnit results, GitHub annotations and container logs.    |
 
 ---
 
@@ -59,6 +67,7 @@ The framework tests the **UI** like a real customer would. It uses the shop's **
 | [dotenv](https://github.com/motdotla/dotenv)                                                                                                                                    | Loads `.env` files per environment                     |
 | [ESLint](https://eslint.org) + [typescript-eslint](https://typescript-eslint.io) + [eslint-plugin-playwright](https://github.com/playwright-community/eslint-plugin-playwright) | Static analysis and Playwright best practices          |
 | [Prettier](https://prettier.io)                                                                                                                                                 | Consistent code formatting                             |
+| [Docker Compose](https://docs.docker.com/compose/)                                                                                                                              | Private Toolshop instance for CI and local runs        |
 | [GitHub Actions](https://docs.github.com/actions)                                                                                                                               | CI pipeline                                            |
 
 ---
@@ -69,7 +78,8 @@ The framework tests the **UI** like a real customer would. It uses the shop's **
 
 - **Node.js 22+**. The version is pinned in [`.nvmrc`](.nvmrc); with nvm, run `nvm use`.
 - **Git**
-- Admin credentials for the Toolshop demo site. They're published in the [Toolshop documentation](https://testsmith-io.github.io/practice-software-testing/#/).
+- Admin credentials for the Toolshop. They're published in the [Toolshop documentation](https://testsmith-io.github.io/practice-software-testing/#/).
+- _Optional:_ **Docker** with the Compose and buildx plugins, to run the private Toolshop copy (see [Test environments](#test-environments-live-site-vs-docker)).
 
 ### 1. Install
 
@@ -100,9 +110,69 @@ ADMIN_PASSWORD=<admin password>
 ### 3. Run
 
 ```bash
-npm test               # full suite
+npm test               # full suite against the live site
 npm run report         # open the HTML report
 ```
+
+To run against the private Docker copy instead, see the next section.
+
+---
+
+## Test environments: live site vs Docker
+
+|                                     | Live site (default locally)                  | Docker copy (CI, optional locally)                        |
+| ----------------------------------- | -------------------------------------------- | --------------------------------------------------------- |
+| URLs                                | `practicesoftwaretesting.com` / `api.…`      | `http://localhost:4200` / `http://localhost:8091`         |
+| Cloudflare bot check                | Yes. **Blocks CI runners** (data-centre IPs) | None                                                      |
+| Data resets                         | On the hour, several times a day             | Never during a run (the reset `cron` service is left out) |
+| Other users changing stock/accounts | Yes                                          | No. Fresh seed data each time                             |
+| Occasional slow or stalled pages    | Yes                                          | No                                                        |
+| Setup needed                        | `.env` only                                  | Docker + `.env.docker`                                    |
+
+**Use the Docker copy** for anything that must be reliable (CI, before a merge, debugging a flaky test). Use the live site for a quick check, for example `npm run test:smoke`.
+
+### Running against the Docker copy locally
+
+**One-time setup (Ubuntu):**
+
+```bash
+sudo apt install -y docker.io docker-compose-v2 docker-buildx
+sudo usermod -aG docker $USER      # then log out of the desktop session and back in
+```
+
+Create `.env.docker` (git-ignored by the `.env.*` rule). These are the default accounts the Docker copy creates:
+
+```dotenv
+BASE_URL=http://localhost:4200
+API_URL=http://localhost:8091
+ADMIN_EMAIL=admin@practicesoftwaretesting.com
+ADMIN_PASSWORD=welcome01
+```
+
+**Every session:**
+
+```bash
+npm run toolshop:up            # start the containers (first time: a few minutes to download ~1.5 GB)
+sleep 30                       # give MariaDB time to start
+npm run toolshop:seed          # create tables + demo data
+TEST_ENV=docker npm test       # TEST_ENV=docker loads .env.docker
+npm run toolshop:down          # stop and remove everything, including data
+```
+
+### What's in `docker/`
+
+| File                                                         | Purpose                                                                                                                                                          |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [`docker/toolshop-compose.yml`](docker/toolshop-compose.yml) | Based on the Toolshop's own `docker-compose.prod.yml`, with app images pinned to **2.5** and the data-resetting `cron` service removed                           |
+| [`docker/web/Dockerfile`](docker/web/Dockerfile)             | Builds the nginx gateway locally. The published `practice-software-testing-web` image only exists for **arm64**, so it can't run on x86_64 PCs or GitHub runners |
+| [`docker/web/vhost.conf`](docker/web/vhost.conf)             | nginx config from the Toolshop repo: forwards API requests on port 8091 to the Laravel API                                                                       |
+
+| Container     | Image                                                 | Port               |
+| ------------- | ----------------------------------------------------- | ------------------ |
+| `angular-ui`  | `testsmith/practice-software-testing-sprint5-ui:2.5`  | `4200` (web shop)  |
+| `web`         | built from `docker/web/` (nginx)                      | `8091` (REST API)  |
+| `laravel-api` | `testsmith/practice-software-testing-sprint5-api:2.5` | internal (PHP-FPM) |
+| `mariadb`     | `yobasystems/alpine-mariadb:10.6.11`                  | `3306`             |
 
 ---
 
@@ -123,6 +193,9 @@ npm run report         # open the HTML report
 | `npm run typecheck`               | TypeScript type check (`tsc --noEmit`)                          |
 | `npm run lint` / `lint:fix`       | ESLint, optionally auto-fixing                                  |
 | `npm run format` / `format:check` | Prettier write / verify                                         |
+| `npm run toolshop:up`             | Start the private Toolshop in Docker (builds `web` if needed)   |
+| `npm run toolshop:seed`           | Create the Docker Toolshop's database tables and demo data      |
+| `npm run toolshop:down`           | Stop the Docker Toolshop and delete its data                    |
 
 ### Useful Playwright CLI options
 
@@ -132,7 +205,7 @@ npx playwright test -g "validation errors"            # tests whose title matche
 npx playwright test --repeat-each=5                   # hunt for flaky tests
 npx playwright test --project=setup                   # only the login setup
 npx playwright test --list                            # list tests without running them
-TEST_ENV=staging npx playwright test                  # use .env.staging (see Configuration)
+TEST_ENV=docker npx playwright test                   # use .env.docker (the Docker Toolshop)
 ALL_BROWSERS=1 npx playwright test                    # add Firefox and WebKit projects
 ```
 
@@ -169,7 +242,7 @@ flowchart LR
     - It logs in as the **admin** and saves that session too.
     - Logins use `LoginPage.loginAs()`. If the site rejects a login, the error contains the site's own message (for example _"Account locked…"_), not a generic timeout.
 2. **`chromium`** runs the specs in parallel. Each test starts **already signed in as the customer**, because the project's `storageState` points at the saved session. Specs that need a signed-out browser (registration) override this with an empty storage state.
-3. **`teardown`** ([`tests/setup/global.teardown.ts`](tests/setup/global.teardown.ts)) runs after all tests have finished and deletes the setup customer through the admin API.
+3. **`teardown`** ([`tests/setup/global.teardown.ts`](tests/setup/global.teardown.ts)) runs after all tests have finished and deletes the setup customer through the admin API. It is **best-effort**: if the delete fails (for example because the live site's database is being reset), it logs a warning instead of failing a run whose tests passed.
 
 ### Inside a single test
 
@@ -195,7 +268,7 @@ sequenceDiagram
 - **Arrange** through the API: fast, and it doesn't depend on other screens working.
 - **Act** through page objects: the same actions a real user takes.
 - **Assert** with Playwright's web-first `expect`, which retries automatically until the condition is true or the timeout is reached.
-- **Clean up** automatically in fixture teardown, even when the test fails.
+- **Clean up** automatically in fixture teardown, even when the test fails. Cleanup errors are logged as warnings, never as test failures.
 
 ---
 
@@ -204,7 +277,7 @@ sequenceDiagram
 ```
 .
 ├── .github/workflows/
-│   └── playwright.yml          # CI: quality gate → E2E tests → reports
+│   └── playwright.yml          # CI: quality gate → Docker Toolshop → E2E tests → reports
 ├── api/
 │   └── toolshop.api.ts         # Typed REST client: register, login, find product, delete user
 ├── components/
@@ -217,6 +290,11 @@ sequenceDiagram
 ├── data/
 │   ├── factory.ts              # Faker-based builders: createUser(), createUsers(), createInvalidUser()…
 │   └── products.ts             # Static product references (only for stock-independent checks)
+├── docker/
+│   ├── toolshop-compose.yml    # Private Toolshop: UI, API, nginx gateway, MariaDB (app pinned to 2.5)
+│   └── web/                    # nginx gateway built locally (upstream image is arm64-only)
+│       ├── Dockerfile
+│       └── vhost.conf
 ├── fixtures/
 │   └── index.ts                # Custom `test` with page-object, API and cleanup fixtures
 ├── pages/
@@ -228,7 +306,7 @@ sequenceDiagram
 ├── tests/
 │   ├── setup/
 │   │   ├── auth.setup.ts       # Creates customer + saves sessions (runs first)
-│   │   └── global.teardown.ts  # Deletes the setup customer (runs last)
+│   │   └── global.teardown.ts  # Deletes the setup customer, best-effort (runs last)
 │   └── e2e/
 │       ├── cart.spec.ts
 │       ├── registration.spec.ts
@@ -237,8 +315,8 @@ sequenceDiagram
 │   └── user.ts                 # Shared `User` model
 ├── .env.example                # Template of required environment variables
 ├── eslint.config.mjs           # ESLint flat config (TypeScript + Playwright rules)
-├── .prettierrc.json            # Formatting rules
-├── playwright.config.ts        # Projects, reporters, timeouts, artefacts
+├── .prettierrc.json            # Formatting rules (+ .prettierignore)
+├── playwright.config.ts        # Projects, reporters, retries, timeouts, artefacts
 └── tsconfig.json               # Strict TS + path aliases
 ```
 
@@ -292,6 +370,9 @@ The framework is built in layers. Each layer may only use the layers below it:
 | **Products chosen at runtime** (`api.findInStockProduct`)                                      | Stock on the public shop changes all day and product ids change on every reset. Hard-coding either one makes tests flaky.                                                                                                                                                                                                        |
 | **`route.fetch()` to capture the register response**                                           | The app redirects right after registering, and Chromium throws away the response body of the page it navigates away from. Intercepting the request with `page.route()` and making it through Playwright with `route.fetch()` keeps the body available. The page still receives the identical response through `route.fulfill()`. |
 | **Cleanup in fixtures, not in `afterEach`**                                                    | `cleanupUsers` runs after every test that uses it, even a failed one, and only logs in as admin when there is something to delete.                                                                                                                                                                                               |
+| **Best-effort cleanup**                                                                        | Deleting test data is housekeeping. If it fails (for example during a database reset, which removes the data anyway), a warning is logged and the test result stays what the test itself decided.                                                                                                                                |
+| **CI tests a private Docker Toolshop, not the public site**                                    | The public site is behind a Cloudflare bot check that blocks GitHub's runners, resets its database on the hour and sometimes stalls. A pinned, freshly seeded copy makes CI results depend only on the app and the tests.                                                                                                        |
+| **Same suite, different target via `TEST_ENV`**                                                | Nothing in the tests knows which server it talks to. `BASE_URL`/`API_URL` come from `.env.<TEST_ENV>`, so switching targets needs no code change.                                                                                                                                                                                |
 | **Environment getters that fail fast**                                                         | `env.adminEmail` throws _"Missing environment variable ADMIN_EMAIL…"_ the moment it is needed, instead of an `undefined` reaching a form field.                                                                                                                                                                                  |
 | **No hard waits**                                                                              | There's no `waitForTimeout` anywhere. Waits are tied to real events (API responses, element states) through web-first assertions.                                                                                                                                                                                                |
 | **`data-test` attributes as locators**                                                         | `testIdAttribute: "data-test"` matches the app's dedicated test hooks. These are stable across styling and copy changes.                                                                                                                                                                                                         |
@@ -381,7 +462,7 @@ test.describe("Contact", () => {
 
 ```bash
 npm run typecheck && npm run lint
-npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
+TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 ```
 
 ### Which session does my test get?
@@ -404,7 +485,7 @@ npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 - **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage and `@stress` for opt-in load-style tests.
 - **Test titles describe behaviour:** _"customer can add a product to the cart"_, not _"test cart 1"_.
 - **Magic numbers go in `config/`:** timeouts in `timeouts.ts`, URLs in `routes.ts`.
-- **Commit only green code:** `npm run typecheck && npm run lint && npm run format:check && npm test`.
+- **Commit only green code:** `npm run typecheck && npm run lint && npm run format:check && npm test`. Run `npm run format` after editing any file, including YAML and Markdown, because CI checks formatting too.
 
 ---
 
@@ -420,13 +501,20 @@ npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 | Screenshot                                         | Failed tests | `test-results/<test>/test-failed-1.png`          |
 | AI-friendly error context (page snapshot + source) | Failed tests | `test-results/<test>/error-context.md`           |
 | JUnit XML                                          | CI only      | `test-results/junit.xml`                         |
+| Docker Toolshop container logs                     | CI failures  | `test-results/toolshop-containers.log`           |
+
+### Retries and "flaky" results
+
+Failed tests are retried **once locally** and **twice in CI**. A test that fails first and then passes on retry is reported as **flaky**, not passed, in both the terminal summary and the HTML report. One-off hiccups of the public site therefore don't fail the run, but they stay visible. A real bug fails every attempt.
 
 ### Debugging workflow
 
 1. `npm run report`, click the failed test and open the **Trace** tab.
-2. In the trace viewer, check the **Network** tab first: an unexpected `4xx` or `5xx` usually explains the failure. For example, `401` means bad credentials, `422` means invalid request data and `423` means a locked account.
-3. Re-run just that test in UI mode: `npm run test:ui`.
-4. Step through it: `npx playwright test <file> -g "<title>" --debug`.
+2. In the trace viewer, check the **Network** tab first: an unexpected `4xx` or `5xx` usually explains the failure. For example, `401` means bad credentials, `422` means invalid request data and `423` means a locked account. A request with no response at all (`-1`) means the server stalled.
+3. Check the failure's time. On the live site, many `500`s or unexpected `401`s at `hh:00` mean a database reset, not a bug.
+4. Re-run just that test in UI mode: `npm run test:ui`.
+5. Step through it: `npx playwright test <file> -g "<title>" --debug`.
+6. If it only fails on the live site, re-run it against the Docker copy (`TEST_ENV=docker`) to separate site problems from real bugs.
 
 The HTML report never opens automatically (`open: "never"`), so a run always exits on its own. Open the report with `npm run report` and stop it with `Ctrl+C`.
 
@@ -439,33 +527,49 @@ The pipeline is defined in [`.github/workflows/playwright.yml`](.github/workflow
 ```mermaid
 flowchart LR
     T(["push / PR to main<br/>nightly schedule<br/>manual run"]) --> Q["quality<br/>typecheck · lint · format"]
-    Q --> E["e2e<br/>setup → tests → teardown"]
-    E --> R[("Artifacts<br/>HTML report · traces · JUnit")]
+    Q --> D["Docker Toolshop<br/>up · seed · wait"]
+    D --> E["e2e<br/>setup → tests → teardown"]
+    E --> R[("Artifacts<br/>HTML report · traces · JUnit · container logs")]
 ```
 
-| Trigger                       | Browsers                  | Notes                      |
-| ----------------------------- | ------------------------- | -------------------------- |
-| Push / pull request to `main` | Chromium                  | Required check             |
-| Nightly schedule (weekdays)   | Chromium, Firefox, WebKit | Sets `ALL_BROWSERS=1`      |
-| Manual (`workflow_dispatch`)  | Chromium                  | Run from the _Actions_ tab |
+**Why CI uses Docker:** the public site is protected by a Cloudflare bot check. Requests from GitHub's runners get a _"Performing security verification"_ page instead of the shop, so no UI test could ever pass there. CI therefore starts its own Toolshop from [`docker/toolshop-compose.yml`](docker/toolshop-compose.yml) and tests `http://localhost:4200` / `http://localhost:8091`.
+
+### Jobs
+
+1. **Type check, lint & format**: `npm ci`, `typecheck`, `lint`, `format:check`. Fails in under a minute, before anything heavy is installed.
+2. **E2E tests** (only after step 1 passes):
+    1. Start the Toolshop containers (in the background while Node and browsers install)
+    2. `npm ci` and install the Playwright browsers (Chromium; all three on the nightly run)
+    3. Wait for MariaDB, then create and seed the database (`php artisan migrate:fresh --seed`)
+    4. Wait until the API (`/status`) and the UI answer
+    5. Run the suite with `BASE_URL` / `API_URL` pointing at the containers
+    6. Upload the HTML report; on failure also upload traces, videos and the container logs
+
+| Trigger                       | Browsers                  | Notes                                       |
+| ----------------------------- | ------------------------- | ------------------------------------------- |
+| Push / pull request to `main` | Chromium                  | Required check                              |
+| Nightly schedule (weekdays)   | Chromium, Firefox, WebKit | 05:30 UTC, sets `ALL_BROWSERS=1`            |
+| Manual (`workflow_dispatch`)  | Chromium                  | _Actions → Playwright Tests → Run workflow_ |
 
 **CI behaviour** (from [`playwright.config.ts`](playwright.config.ts) when `CI` is set):
 
-- `retries: 2`, which absorbs the occasional hiccup of the public demo site
-- `workers: 2`, kept low on purpose because the target is a shared public site behind Cloudflare
+- `retries: 2`
+- `workers: 2`, because the browsers and the Docker Toolshop share one runner
 - `forbidOnly: true`, so a forgotten `test.only` fails the build
 - Reporters: `github` (inline annotations on the PR), `html` and `junit`
 - A newer push to the same branch cancels the run still in progress (`concurrency`)
+- Actions run on their current major versions (`checkout`, `setup-node`, `upload-artifact` **v7**, Node 24)
 
 ### Required repository settings
 
 _Settings → Secrets and variables → Actions_
 
-| Name             | Type     | Value                                                                 |
-| ---------------- | -------- | --------------------------------------------------------------------- |
-| `ADMIN_EMAIL`    | Secret   | Admin account email                                                   |
-| `ADMIN_PASSWORD` | Secret   | Admin account password                                                |
-| `BASE_URL`       | Variable | `https://practicesoftwaretesting.com` (optional, this is the default) |
+| Name             | Type   | Value                                                                       |
+| ---------------- | ------ | --------------------------------------------------------------------------- |
+| `ADMIN_EMAIL`    | Secret | Admin account email (the Docker copy seeds the same admin as the live site) |
+| `ADMIN_PASSWORD` | Secret | Admin account password                                                      |
+
+`BASE_URL` and `API_URL` are set inside the workflow to the Docker containers, so no repository variables are needed.
 
 After a run, download **playwright-report** (and **test-results** when something failed) from the bottom of the run summary page.
 
@@ -475,16 +579,16 @@ After a run, download **playwright-report** (and **test-results** when something
 
 ### Environment variables
 
-| Variable         | Required | Default                                   | Purpose                                                                                |
-| ---------------- | -------- | ----------------------------------------- | -------------------------------------------------------------------------------------- |
-| `BASE_URL`       | No       | `https://practicesoftwaretesting.com`     | Web app under test                                                                     |
-| `API_URL`        | No       | `https://api.practicesoftwaretesting.com` | REST API used for setup and cleanup                                                    |
-| `ADMIN_EMAIL`    | **Yes**  | —                                         | Admin login (setup + user cleanup)                                                     |
-| `ADMIN_PASSWORD` | **Yes**  | —                                         | Admin login                                                                            |
-| `TEST_ENV`       | No       | —                                         | Loads `.env.<TEST_ENV>` before `.env`, for example `TEST_ENV=staging` → `.env.staging` |
-| `STRESS`         | No       | —                                         | Adds the `stress` project                                                              |
-| `ALL_BROWSERS`   | No       | —                                         | Adds the `firefox` and `webkit` projects                                               |
-| `CI`             | No       | —                                         | Set automatically by GitHub Actions; switches to CI behaviour                          |
+| Variable         | Required | Default                                   | Purpose                                                                              |
+| ---------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
+| `BASE_URL`       | No       | `https://practicesoftwaretesting.com`     | Web app under test                                                                   |
+| `API_URL`        | No       | `https://api.practicesoftwaretesting.com` | REST API used for setup and cleanup                                                  |
+| `ADMIN_EMAIL`    | **Yes**  | —                                         | Admin login (setup + user cleanup)                                                   |
+| `ADMIN_PASSWORD` | **Yes**  | —                                         | Admin login                                                                          |
+| `TEST_ENV`       | No       | —                                         | Loads `.env.<TEST_ENV>` before `.env`, for example `TEST_ENV=docker` → `.env.docker` |
+| `STRESS`         | No       | —                                         | Adds the `stress` project                                                            |
+| `ALL_BROWSERS`   | No       | —                                         | Adds the `firefox` and `webkit` projects                                             |
+| `CI`             | No       | —                                         | Set automatically by GitHub Actions; switches to CI behaviour                        |
 
 Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defaults.**
 
@@ -497,6 +601,13 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 | `action`     | 10 s  | Each click, fill and so on                           |
 | `navigation` | 15 s  | `page.goto` and navigations                          |
 | `toast`      | 10 s  | Waiting for the "added to cart" message to disappear |
+
+### Retries and workers
+
+|         | Local                          | CI  |
+| ------- | ------------------------------ | --- |
+| Retries | 1                              | 2   |
+| Workers | Playwright default (CPU-based) | 2   |
 
 ### Playwright projects
 
@@ -512,6 +623,8 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ## Troubleshooting
 
+### Tests
+
 | Symptom                                                                  | Cause                                                                                | Fix                                                                                                                 |
 | ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
 | `Login failed for …: Account locked, too many failed attempts`           | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset. |
@@ -520,9 +633,24 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 | `Register failed: {"email":["The email field is required."]}` (HTTP 422) | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                       |
 | Add-to-cart button disabled / click timeout                              | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                            |
 | `response.json: No resource with given identifier found`                 | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                 |
+| Many `500`s or unexpected `401`s around `hh:00` (live site)              | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                  |
+| Test timeout; a page request in the trace never got a response (`-1`)    | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                 |
 | `project 'setup' has unknown teardown project 'teardown'`                | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                       |
 | Terminal stuck after a run, `Ctrl+C` seems ignored                       | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                           |
 | Imports with `@pages/…` show red in VS Code                              | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                    |
+
+### CI and Docker
+
+| Symptom                                                                        | Cause                                                                        | Fix                                                                                        |
+| ------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| CI: login form never appears; trace shows _"Performing security verification"_ | Cloudflare blocks the public site for data-centre IPs such as GitHub runners | CI must test the Docker Toolshop (`BASE_URL=http://localhost:4200`), never the public site |
+| CI fails in the quality job at `format:check`                                  | A file (often YAML or Markdown) was edited after formatting                  | `npm run format` and commit                                                                |
+| `permission denied while trying to connect to the docker API`                  | You're in the `docker` group, but your desktop session started before that   | Log out of Ubuntu and back in (or `newgrp docker` in one terminal). Don't use `sudo`.      |
+| `web` container `Exited (255)`, log: `exec format error`                       | The published `practice-software-testing-web` image is arm64-only            | Keep `build: ./web` in the compose file. The image is built locally for your CPU.          |
+| Warning: `the attribute 'version' is obsolete`                                 | Old Compose file format                                                      | Remove the `version:` line                                                                 |
+| Warning: `The legacy builder is deprecated`                                    | Docker's buildx plugin isn't installed                                       | `sudo apt install docker-buildx`                                                           |
+| `toolshop:seed` can't connect to the database                                  | MariaDB is still starting                                                    | Wait 30 seconds and run it again                                                           |
+| API returns `500` right after `toolshop:up`                                    | Database not seeded yet (no tables)                                          | `npm run toolshop:seed`                                                                    |
 
 ---
 
@@ -533,4 +661,6 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 - [ ] Admin scenarios (product and order management) using the saved admin session
 - [ ] Visual regression snapshots for key pages
 - [ ] Accessibility checks with `@axe-core/playwright`
+- [ ] Health checks in `docker/toolshop-compose.yml` so `docker compose up --wait` replaces the manual wait loops
+- [ ] Cache Docker images and Playwright browsers in CI to speed up runs
 - [ ] Sharded CI runs with a merged blob report once the suite grows

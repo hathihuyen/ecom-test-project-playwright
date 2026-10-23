@@ -14,9 +14,6 @@ concurrency:
     group: ${{ github.workflow }}-${{ github.ref }}
     cancel-in-progress: true
 
-# env:
-#     FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
-
 jobs:
     quality:
         name: Type check, lint & format
@@ -39,11 +36,7 @@ jobs:
         runs-on: ubuntu-latest
         timeout-minutes: 30
         env:
-            FALL_BROWSERS: ${{ github.event_name == 'schedule' && '1' || '' }}
-            # Private copy of the Toolshop (no Cloudflare, no hourly resets)
-            # SPRINT: sprint5
-            # DISABLE_LOGGING: "true"
-            # TOOLSHOP_REF: ae7caecb811dd8952c09d997e69be7cb946ecd44 # pinned commit of testsmith-io/practice-software-testing
+            ALL_BROWSERS: ${{ github.event_name == 'schedule' && '1' || '' }}
             COMPOSE: docker compose -f docker/toolshop-compose.yml
         steps:
             - uses: actions/checkout@v7
@@ -97,4 +90,3 @@ jobs:
                   name: test-results-${{ github.run_attempt }}
                   path: test-results/
                   retention-days: 7
-
