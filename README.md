@@ -28,13 +28,14 @@ The same suite runs against two targets with no code changes:
 7. [Project structure](#project-structure)
 8. [Architecture & design decisions](#architecture--design-decisions)
 9. [Test coverage](#test-coverage)
-10. [Writing a new test](#writing-a-new-test)
-11. [Conventions](#conventions)
-12. [Reports & debugging](#reports--debugging)
-13. [Continuous integration](#continuous-integration)
-14. [Configuration reference](#configuration-reference)
-15. [Troubleshooting](#troubleshooting)
-16. [Roadmap](#roadmap)
+10. [Data-driven tests](#data-driven-tests)
+11. [Writing a new test](#writing-a-new-test)
+12. [Conventions](#conventions)
+13. [Reports & debugging](#reports--debugging)
+14. [Continuous integration](#continuous-integration)
+15. [Configuration reference](#configuration-reference)
+16. [Troubleshooting](#troubleshooting)
+17. [Roadmap](#roadmap)
 
 ---
 
@@ -43,6 +44,8 @@ The same suite runs against two targets with no code changes:
 |                                    |                                                                                                                                  |
 | ---------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
 | **Page Object Model + components** | Pages hold locators and user actions. Shared UI such as the nav bar is a reusable component.                                     |
+| **Enum-based locators**            | Every `data-test` id lives in an `enum` at the top of its page file. Constructors never contain string literals.                 |
+| **Data-driven tests**              | Test cases are typed data arrays (`data/*.data.ts`). Adding a case means adding one object, with no new test code.               |
 | **Custom fixtures**                | Tests ask for `registrationPage`, `api` and so on, and get ready-to-use objects. Nothing needs `new` inside a test.              |
 | **API-first test data**            | Users are created through the REST API in about a second. The UI is used only for the behaviour under test.                      |
 | **Self-cleaning**                  | Every user a test creates is deleted afterwards, by a fixture or by a teardown project. Cleanup never fails a run.               |
@@ -51,7 +54,7 @@ The same suite runs against two targets with no code changes:
 | **Self-contained CI**              | CI starts its own Toolshop in Docker (pinned to app version 2.5), seeds it, and tests that copy rather than the public internet. |
 | **Resilient to live data**         | Products are chosen at runtime by asking the API what is in stock. No hard-coded ids or names.                                   |
 | **Typed end to end**               | Strict TypeScript, a shared `User` model, typed page objects and typed environment config.                                       |
-| **Tag-based suites**               | `@smoke`, `@regression` and `@stress` let you run exactly the subset you need.                                                   |
+| **Tag-based suites**               | `@smoke`, `@regression`, `@negative`, `@edge` and `@stress` let you run exactly the subset you need.                             |
 | **Quality gates**                  | Type check, ESLint (including Playwright rules and missing-`await` detection) and Prettier run in CI before any test.            |
 | **Rich failure evidence**          | Each failed test keeps a trace, a video and a screenshot. CI also saves JUnit results, GitHub annotations and container logs.    |
 
@@ -186,6 +189,7 @@ npm run toolshop:down          # stop and remove everything, including data
 | `npm run test:smoke`              | Only tests tagged `@smoke`, a fast confidence check             |
 | `npm run test:regression`         | Only tests tagged `@regression`                                 |
 | `npm run test:stress`             | The opt-in concurrency test (`@stress`), in its own project     |
+| `npm run test:login`              | Only the login suite (`tests/e2e/login.spec.ts`)                |
 | `npm run test:headed`             | Run with a visible browser window                               |
 | `npm run test:ui`                 | Playwright **UI mode**: watch, time-travel, re-run single tests |
 | `npm run test:debug`              | Step through a test with the Playwright Inspector               |
@@ -202,6 +206,7 @@ npm run toolshop:down          # stop and remove everything, including data
 ```bash
 npx playwright test tests/e2e/cart.spec.ts            # one file
 npx playwright test -g "validation errors"            # tests whose title matches
+npx playwright test --grep @negative                  # only negative tests (also: @edge, @smoke, …)
 npx playwright test --repeat-each=5                   # hunt for flaky tests
 npx playwright test --project=setup                   # only the login setup
 npx playwright test --list                            # list tests without running them
@@ -285,10 +290,12 @@ sequenceDiagram
 ├── config/
 │   ├── auth.ts                 # Paths of saved sessions, admin display name
 │   ├── env.ts                  # Loads .env / .env.<TEST_ENV>, validates required variables
-│   ├── routes.ts               # App URLs in one place
+│   ├── routes.ts               # App URLs (ROUTES) and API endpoints (enum ApiPath) in one place
 │   └── timeouts.ts             # All timeouts as named constants
 ├── data/
 │   ├── factory.ts              # Faker-based builders: createUser(), createUsers(), createInvalidUser()…
+│   ├── login.data.ts           # Data-driven login cases: invalid input, rejected credentials, accepted variants
+│   ├── messages.ts             # enum LoginMessage: every text the app shows, exactly as rendered
 │   └── products.ts             # Static product references (only for stock-independent checks)
 ├── docker/
 │   ├── toolshop-compose.yml    # Private Toolshop: UI, API, nginx gateway, MariaDB (app pinned to 2.5)
@@ -296,10 +303,10 @@ sequenceDiagram
 │       ├── Dockerfile
 │       └── vhost.conf
 ├── fixtures/
-│   └── index.ts                # Custom `test` with page-object, API and cleanup fixtures
+│   └── index.ts                # Custom `test`: page objects, API client, cleanup, registeredUser
 ├── pages/
 │   ├── base.page.ts            # Abstract base: holds `page` + `header`
-│   ├── login.page.ts
+│   ├── login.page.ts           # enum LoginLocator / LoginField / SubmitMethod + login actions
 │   ├── registration.page.ts
 │   ├── product-list.page.ts
 │   └── product-detail.page.ts
@@ -309,6 +316,7 @@ sequenceDiagram
 │   │   └── global.teardown.ts  # Deletes the setup customer, best-effort (runs last)
 │   └── e2e/
 │       ├── cart.spec.ts
+│       ├── login.spec.ts       # Data-driven negative + edge cases, account lockout
 │       ├── registration.spec.ts
 │       └── concurrent-registration.spec.ts
 ├── types/
@@ -376,19 +384,83 @@ The framework is built in layers. Each layer may only use the layers below it:
 | **Environment getters that fail fast**                                                         | `env.adminEmail` throws _"Missing environment variable ADMIN_EMAIL…"_ the moment it is needed, instead of an `undefined` reaching a form field.                                                                                                                                                                                  |
 | **No hard waits**                                                                              | There's no `waitForTimeout` anywhere. Waits are tied to real events (API responses, element states) through web-first assertions.                                                                                                                                                                                                |
 | **`data-test` attributes as locators**                                                         | `testIdAttribute: "data-test"` matches the app's dedicated test hooks. These are stable across styling and copy changes.                                                                                                                                                                                                         |
+| **Locator ids in an `enum` at the top of each page file**                                      | When the app renames a `data-test` id there is exactly one line to change, the compiler catches typos, and editors autocomplete the ids. Plain `enum` is used, not `const enum`: Playwright compiles each file separately, and `const enum` values imported from another file don't survive that.                                |
+| **App texts in `enum LoginMessage`**                                                           | Expected messages are written once, exactly as the app renders them, and shared by data and specs. A copy change in the app is a one-line fix.                                                                                                                                                                                   |
+| **Data-driven: one array and one loop per kind of outcome**                                    | Invalid input, rejected credentials and accepted variants each have their own typed array and their own assertions. A single array with a `switch` on the outcome would hide conditions inside tests, which ESLint's `playwright/no-conditional-in-test` rule warns about.                                                       |
+| **A fresh account per test (`registeredUser`)**                                                | Cases that need a real account get their own, built from it with small functions such as `(u) => u.email.toUpperCase()`. The lockout test can't lock an account another test uses, so everything stays safe in parallel.                                                                                                         |
+| **Stateful scenarios stay ordinary tests**                                                     | The lockout test depends on the order of its attempts, so it's written as one test with `test.step`s rather than squeezed into a data table.                                                                                                                                                                                     |
+| **Proving "no API call" by counting requests**                                                 | For client-side validation, `loginPage.trackLoginRequests()` counts `POST /users/login` calls. The test asserts the count is 0 once the field errors are visible. No fixed wait for a request that should never happen.                                                                                                          |
 
 ---
 
 ## Test coverage
 
-| Spec                                                                           | Test                                                                        | Tags                   | Session    |
-| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ---------------------- | ---------- |
-| [`cart.spec.ts`](tests/e2e/cart.spec.ts)                                       | Customer can add an in-stock product to the cart and the cart badge shows 1 | `@smoke` `@regression` | Customer   |
-| [`registration.spec.ts`](tests/e2e/registration.spec.ts)                       | New user can register and is sent to the login page (API returns 201)       | `@smoke` `@regression` | Signed out |
-| [`registration.spec.ts`](tests/e2e/registration.spec.ts)                       | Invalid data shows field-level validation errors                            | `@regression`          | Signed out |
-| [`concurrent-registration.spec.ts`](tests/e2e/concurrent-registration.spec.ts) | Several users register at the same time in separate browser contexts        | `@stress`              | Signed out |
+| Spec                                                                           | Test                                                                        | Tags                      | Session    |
+| ------------------------------------------------------------------------------ | --------------------------------------------------------------------------- | ------------------------- | ---------- |
+| [`cart.spec.ts`](tests/e2e/cart.spec.ts)                                       | Customer can add an in-stock product to the cart and the cart badge shows 1 | `@smoke` `@regression`    | Customer   |
+| [`registration.spec.ts`](tests/e2e/registration.spec.ts)                       | New user can register and is sent to the login page (API returns 201)       | `@smoke` `@regression`    | Signed out |
+| [`registration.spec.ts`](tests/e2e/registration.spec.ts)                       | Invalid data shows field-level validation errors                            | `@regression`             | Signed out |
+| [`concurrent-registration.spec.ts`](tests/e2e/concurrent-registration.spec.ts) | Several users register at the same time in separate browser contexts        | `@stress`                 | Signed out |
+| [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | 8 form-validation cases: field error shown, no API call                     | `@regression` `@negative` | Signed out |
+| [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | 4 rejected-credential cases: HTTP 401 and a generic error message           | `@regression` `@negative` | Signed out |
+| [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | 3 accepted edge cases: upper-case email, spaces around email, Enter key     | `@regression` `@edge`     | Signed out |
+| [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | Account is locked after 3 wrong passwords; even the correct one gets 423    | `@regression` `@negative` | Signed out |
 
 `@stress` tests are excluded from the default run and only run with `npm run test:stress`.
+
+### Login cases in detail
+
+The expected behaviour was checked against the real application, not assumed.
+
+| Group                | Input                                                                                        | Expected                                                                                |
+| -------------------- | -------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| Form validation      | Empty email and password                                                                     | `Email is required` + `Password is required`, no API call                               |
+| Form validation      | Empty email / empty password                                                                 | `Email is required` / `Password is required`                                            |
+| Form validation      | `not-an-email`, SQL injection `' OR '1'='1`, 262-character email                             | `Email format is invalid`                                                               |
+| Form validation      | Password of 1 or 2 characters (minimum is 3)                                                 | `Password length is invalid`                                                            |
+| Rejected credentials | Unknown email, wrong password, password in the wrong letter case, wrong 3-character password | HTTP 401, `Invalid email or password` (the same text whether the email exists or not)   |
+| Accepted variants    | Email in UPPER CASE, email with spaces around it, submit with Enter                          | HTTP 200, redirected to `/account`, user's name in the nav bar                          |
+| Lockout              | 3 wrong passwords, then the correct one                                                      | HTTP 423, `Account locked, too many failed attempts. Please contact the administrator.` |
+
+---
+
+## Data-driven tests
+
+Cases live in **`data/<feature>.data.ts`** as typed arrays. The spec loops over each array and generates one test per entry, named from the case's `title`:
+
+```ts
+// data/login.data.ts – one object per case
+export const REJECTED_CREDENTIAL_CASES: CredentialCase[] = [
+    { title: "unknown email", email: (u) => `unknown.${u.email}`, password: (u) => u.password },
+    { title: "wrong password", email: (u) => u.email, password: () => "Wrong#Pass1" },
+    // …
+];
+
+// tests/e2e/login.spec.ts – one loop generates the tests
+for (const data of REJECTED_CREDENTIAL_CASES) {
+    test(`rejects ${data.title}`, async ({ loginPage, registeredUser }) => {
+        await loginPage.goto();
+        const status = await loginPage.loginAndGetStatus(data.email(registeredUser), data.password(registeredUser));
+        expect(status).toBe(401);
+        await expect(loginPage.errorMessage).toHaveText(LoginMessage.InvalidCredentials);
+    });
+}
+```
+
+**Two kinds of case data:**
+
+| Type               | Values                                       | Used when                                                                                 |
+| ------------------ | -------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `InvalidInputCase` | Plain strings                                | The input never reaches the server (form validation)                                      |
+| `CredentialCase`   | Functions of a `User`, e.g. `(u) => u.email` | The case needs a real account; the `registeredUser` fixture provides a fresh one per test |
+
+### Adding a login case
+
+1. If the app shows a new text, add it to `LoginMessage` in [`data/messages.ts`](data/messages.ts).
+2. Add one object to the matching array in [`data/login.data.ts`](data/login.data.ts).
+3. Run `npm run test:login`. The new test appears automatically, named after its `title`.
+
+Only add cases whose behaviour you have confirmed in the app, for example with `npm run test:ui` or the browser's DevTools.
 
 ---
 
@@ -407,10 +479,18 @@ export const ROUTES = {
 
 ### 2. Create a page object — `pages/contact.page.ts`
 
+Locator ids go in an `enum` at the top of the file. The constructor only uses enum members.
+
 ```ts
 import { Locator, Page } from "@playwright/test";
 import { BasePage } from "./base.page";
 import { ROUTES } from "@config/routes";
+
+/** `data-test` ids of the contact page. Look up the real ids in DevTools or with `npx playwright codegen`. */
+export enum ContactLocator {
+    FirstNameInput = "first-name",
+    SendButton = "contact-submit",
+}
 
 export class ContactPage extends BasePage {
     readonly firstNameInput: Locator;
@@ -418,9 +498,8 @@ export class ContactPage extends BasePage {
 
     constructor(page: Page) {
         super(page);
-        // Look up the real data-test ids in DevTools or with `npx playwright codegen`
-        this.firstNameInput = page.getByTestId("first-name");
-        this.sendButton = page.getByTestId("contact-submit");
+        this.firstNameInput = page.getByTestId(ContactLocator.FirstNameInput);
+        this.sendButton = page.getByTestId(ContactLocator.SendButton);
     }
 
     async goto() {
@@ -467,22 +546,35 @@ TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 
 ### Which session does my test get?
 
-| Need                                | How                                                                          |
-| ----------------------------------- | ---------------------------------------------------------------------------- |
-| Signed in as **customer** (default) | Nothing to do                                                                |
-| **Signed out**                      | `test.use({ storageState: { cookies: [], origins: [] } });`                  |
-| Signed in as **admin**              | `test.use({ storageState: AUTH_FILES.admin });` (import from `@config/auth`) |
+| Need                                   | How                                                                           |
+| -------------------------------------- | ----------------------------------------------------------------------------- |
+| Signed in as **customer** (default)    | Nothing to do                                                                 |
+| **Signed out**                         | `test.use({ storageState: { cookies: [], origins: [] } });`                   |
+| Signed in as **admin**                 | `test.use({ storageState: AUTH_FILES.admin });` (import from `@config/auth`)  |
+| A **brand-new account** to log in with | Ask for the `registeredUser` fixture (registered via API, deleted afterwards) |
+
+### Available fixtures
+
+| Fixture                                                                 | Gives you                                                                                                    |
+| ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `loginPage`, `registrationPage`, `productListPage`, `productDetailPage` | Ready-made page objects on the test's `page`                                                                 |
+| `api`                                                                   | `ToolshopApi` REST client                                                                                    |
+| `cleanupUsers`                                                          | An array: push ids of users you create and they're deleted after the test (best-effort)                      |
+| `registeredUser`                                                        | A fresh customer (`User`, including `email` and `password`), registered via API and cleaned up automatically |
 
 ---
 
 ## Conventions
 
 - **Locators:** prefer `getByTestId` (the `data-test` attribute), then `getByRole` / `getByLabel`. Avoid CSS and XPath.
+- **Locator ids live in an `enum` at the top of each page file** (for example `LoginLocator`). Constructors use only enum members, never string literals. Use `enum`, not `const enum`.
+- **No hard-coded strings for app texts or endpoints:** expected messages come from `data/messages.ts`, API paths from `ApiPath` in `config/routes.ts`.
+- **Data-driven tests:** cases live in `data/<feature>.data.ts` as typed arrays, with one array and one loop per kind of outcome. Stateful scenarios (like lockout) stay ordinary tests with `test.step`s.
 - **No raw locators in specs.** If a spec needs an element, add it to the page object.
 - **No hard waits** (`waitForTimeout`). Wait for a response, a URL or an element state.
 - **No hard-coded live data.** Product ids and stock come from the API at runtime, and users come from the factory.
 - **Every test cleans up** what it creates. Push created user ids into `cleanupUsers`.
-- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage and `@stress` for opt-in load-style tests.
+- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage, `@negative` for invalid input and rejections, `@edge` for unusual-but-valid input, and `@stress` for opt-in load-style tests.
 - **Test titles describe behaviour:** _"customer can add a product to the cart"_, not _"test cart 1"_.
 - **Magic numbers go in `config/`:** timeouts in `timeouts.ts`, URLs in `routes.ts`.
 - **Commit only green code:** `npm run typecheck && npm run lint && npm run format:check && npm test`. Run `npm run format` after editing any file, including YAML and Markdown, because CI checks formatting too.
@@ -625,19 +717,22 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ### Tests
 
-| Symptom                                                                  | Cause                                                                                | Fix                                                                                                                 |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------- |
-| `Login failed for …: Account locked, too many failed attempts`           | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset. |
-| `Login failed for …: Invalid email or password`                          | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                    |
-| `Missing environment variable "ADMIN_EMAIL"`                             | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                 |
-| `Register failed: {"email":["The email field is required."]}` (HTTP 422) | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                       |
-| Add-to-cart button disabled / click timeout                              | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                            |
-| `response.json: No resource with given identifier found`                 | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                 |
-| Many `500`s or unexpected `401`s around `hh:00` (live site)              | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                  |
-| Test timeout; a page request in the trace never got a response (`-1`)    | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                 |
-| `project 'setup' has unknown teardown project 'teardown'`                | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                       |
-| Terminal stuck after a run, `Ctrl+C` seems ignored                       | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                           |
-| Imports with `@pages/…` show red in VS Code                              | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                    |
+| Symptom                                                                                               | Cause                                                                                | Fix                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `Login failed for …: Account locked, too many failed attempts`                                        | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset.                    |
+| `Login failed for …: Invalid email or password`                                                       | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                                       |
+| `Missing environment variable "ADMIN_EMAIL"`                                                          | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                                    |
+| `Register failed: {"email":["The email field is required."]}` (HTTP 422)                              | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                                          |
+| Add-to-cart button disabled / click timeout                                                           | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                                               |
+| `response.json: No resource with given identifier found`                                              | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                                    |
+| Many `500`s or unexpected `401`s around `hh:00` (live site)                                           | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                                     |
+| Test timeout; a page request in the trace never got a response (`-1`)                                 | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                                    |
+| `project 'setup' has unknown teardown project 'teardown'`                                             | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                                          |
+| Both setup tests time out (`page.goto` / `apiRequestContext.post`) and every other test "did not run" | The target site was down or unreachable; all tests depend on `setup`                 | Check the site (`curl …/status`), wait and re-run, or use the Docker copy. With `TEST_ENV=docker`, make sure `npm run toolshop:up` ran |
+| `Error: No tests found.` when running one file or `npm run test:login`                                | The file path doesn't match a real file (for example a typo in the file name)        | `ls tests/e2e` and fix the file name or the path in the script                                                                         |
+| A login test fails with `423` / `Account locked` unexpectedly                                         | Several tests shared one account and together hit the 3-failure limit                | Use the `registeredUser` fixture so every test has its own account                                                                     |
+| Terminal stuck after a run, `Ctrl+C` seems ignored                                                    | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                                              |
+| Imports with `@pages/…` show red in VS Code                                                           | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                                       |
 
 ### CI and Docker
 
@@ -656,6 +751,10 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ## Roadmap
 
+- [x] Data-driven negative and edge-case tests for login, with enum-based locators
+- [ ] Roll the enum-locator pattern out to `HeaderComponent`, `RegistrationPage`, `ProductListPage` and `ProductDetailPage`
+- [ ] Data-driven negative cases for registration, built the same way as login
+- [ ] A "Toolshop is reachable" health check as the first setup step, so an outage shows one clear error
 - [ ] API test suite (`tests/api/`) for contract checks of `/products`, `/carts` and `/users`
 - [ ] Checkout flow: cart → address → payment → invoice
 - [ ] Admin scenarios (product and order management) using the saved admin session

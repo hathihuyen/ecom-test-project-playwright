@@ -5,6 +5,8 @@ import { ProductListPage } from "@pages/product-list.page";
 import { ProductDetailPage } from "@pages/product-detail.page";
 import { ToolshopApi } from "@api/toolshop.api";
 import { env } from "@config/env";
+import { createUser } from "@data/factory";
+import { User } from "@models/user";
 
 type Fixtures = {
     loginPage: LoginPage;
@@ -14,6 +16,8 @@ type Fixtures = {
     api: ToolshopApi;
     /** Push ids of users a test creates; they are deleted after the test. */
     cleanupUsers: string[];
+    /** A brand-new customer registered through the API; deleted after the test. */
+    registeredUser: User;
 };
 
 export const test = base.extend<Fixtures>({
@@ -43,6 +47,11 @@ export const test = base.extend<Fixtures>({
             // Cleanup is best-effort: the demo DB may be resetting, which removes the user anyway
             console.warn(`Cleanup: could not delete test users ${ids.join(", ")}: ${(error as Error).message}`);
         }
+    },
+    registeredUser: async ({ api, cleanupUsers }, use) => {
+        const user = createUser();
+        cleanupUsers.push(await api.registerUser(user));
+        await use(user);
     },
 });
 

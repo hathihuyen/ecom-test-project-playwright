@@ -18,7 +18,8 @@
         "format:check": "prettier --check .",
         "toolshop:up": "docker compose -f docker/toolshop-compose.yml up -d --build",
         "toolshop:seed": "docker compose -f docker/toolshop-compose.yml exec -T laravel-api php artisan migrate:fresh --seed --force",
-        "toolshop:down": "docker compose -f docker/toolshop-compose.yml down -v"
+        "toolshop:down": "docker compose -f docker/toolshop-compose.yml down -v",
+        "test:login": "playwright test tests/e2e/login.spec.ts"
     },
     "author": "",
     "license": "ISC",
