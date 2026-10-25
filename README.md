@@ -8,6 +8,8 @@
 
 End-to-end test automation for the [Practice Software Testing – Toolshop](https://practicesoftwaretesting.com), a demo e-commerce web shop, built with **Playwright** and **TypeScript**.
 
+It covers the customer journey end to end: **registration, login, cart and a full checkout** (cart → address → payment → invoice) with all five payment methods.
+
 The framework tests the **UI** like a real customer would. It uses the shop's **REST API** to prepare and clean up test data quickly and reliably. Each test run creates its own user accounts and data and deletes them afterwards. Shared demo accounts, product stock or leftover state from earlier runs can't make it fail.
 
 The same suite runs against two targets with no code changes:
@@ -28,14 +30,16 @@ The same suite runs against two targets with no code changes:
 7. [Project structure](#project-structure)
 8. [Architecture & design decisions](#architecture--design-decisions)
 9. [Test coverage](#test-coverage)
-10. [Data-driven tests](#data-driven-tests)
-11. [Writing a new test](#writing-a-new-test)
-12. [Conventions](#conventions)
-13. [Reports & debugging](#reports--debugging)
-14. [Continuous integration](#continuous-integration)
-15. [Configuration reference](#configuration-reference)
-16. [Troubleshooting](#troubleshooting)
-17. [Roadmap](#roadmap)
+10. [Checkout flow](#checkout-flow)
+11. [Known application bugs](#known-application-bugs)
+12. [Data-driven tests](#data-driven-tests)
+13. [Writing a new test](#writing-a-new-test)
+14. [Conventions](#conventions)
+15. [Reports & debugging](#reports--debugging)
+16. [Continuous integration](#continuous-integration)
+17. [Configuration reference](#configuration-reference)
+18. [Troubleshooting](#troubleshooting)
+19. [Roadmap](#roadmap)
 
 ---
 
@@ -46,6 +50,8 @@ The same suite runs against two targets with no code changes:
 | **Page Object Model + components** | Pages hold locators and user actions. Shared UI such as the nav bar is a reusable component.                                     |
 | **Enum-based locators**            | Every `data-test` id lives in an `enum` at the top of its page file. Constructors never contain string literals.                 |
 | **Data-driven tests**              | Test cases are typed data arrays (`data/*.data.ts`). Adding a case means adding one object, with no new test code.               |
+| **Full purchase flow**             | One test per payment method walks cart → address → payment → invoice and checks the invoice the customer sees afterwards.        |
+| **Known-bug tests**                | Real app bugs are pinned with `test.fail()` + a `bug` annotation. They turn red the moment the bug is fixed, so you notice.      |
 | **Custom fixtures**                | Tests ask for `registrationPage`, `api` and so on, and get ready-to-use objects. Nothing needs `new` inside a test.              |
 | **API-first test data**            | Users are created through the REST API in about a second. The UI is used only for the behaviour under test.                      |
 | **Self-cleaning**                  | Every user a test creates is deleted afterwards, by a fixture or by a teardown project. Cleanup never fails a run.               |
@@ -54,7 +60,7 @@ The same suite runs against two targets with no code changes:
 | **Self-contained CI**              | CI starts its own Toolshop in Docker (pinned to app version 2.5), seeds it, and tests that copy rather than the public internet. |
 | **Resilient to live data**         | Products are chosen at runtime by asking the API what is in stock. No hard-coded ids or names.                                   |
 | **Typed end to end**               | Strict TypeScript, a shared `User` model, typed page objects and typed environment config.                                       |
-| **Tag-based suites**               | `@smoke`, `@regression`, `@negative`, `@edge` and `@stress` let you run exactly the subset you need.                             |
+| **Tag-based suites**               | `@smoke`, `@regression`, `@negative`, `@edge`, `@known-bug` and `@stress` let you run exactly the subset you need.               |
 | **Quality gates**                  | Type check, ESLint (including Playwright rules and missing-`await` detection) and Prettier run in CI before any test.            |
 | **Rich failure evidence**          | Each failed test keeps a trace, a video and a screenshot. CI also saves JUnit results, GitHub annotations and container logs.    |
 
@@ -190,6 +196,7 @@ npm run toolshop:down          # stop and remove everything, including data
 | `npm run test:regression`         | Only tests tagged `@regression`                                 |
 | `npm run test:stress`             | The opt-in concurrency test (`@stress`), in its own project     |
 | `npm run test:login`              | Only the login suite (`tests/e2e/login.spec.ts`)                |
+| `npm run test:checkout`           | Only the checkout suite (`tests/e2e/checkout.spec.ts`)          |
 | `npm run test:headed`             | Run with a visible browser window                               |
 | `npm run test:ui`                 | Playwright **UI mode**: watch, time-travel, re-run single tests |
 | `npm run test:debug`              | Step through a test with the Playwright Inspector               |
@@ -207,6 +214,8 @@ npm run toolshop:down          # stop and remove everything, including data
 npx playwright test tests/e2e/cart.spec.ts            # one file
 npx playwright test -g "validation errors"            # tests whose title matches
 npx playwright test --grep @negative                  # only negative tests (also: @edge, @smoke, …)
+npx playwright test --grep @known-bug                 # only the tests that pin known app bugs
+npx playwright test --grep-invert @known-bug          # everything except the known-bug tests
 npx playwright test --repeat-each=5                   # hunt for flaky tests
 npx playwright test --project=setup                   # only the login setup
 npx playwright test --list                            # list tests without running them
@@ -284,7 +293,7 @@ sequenceDiagram
 ├── .github/workflows/
 │   └── playwright.yml          # CI: quality gate → Docker Toolshop → E2E tests → reports
 ├── api/
-│   └── toolshop.api.ts         # Typed REST client: register, login, find product, delete user
+│   └── toolshop.api.ts         # Typed REST client: register, login, find product, postcode lookup, delete user
 ├── components/
 │   └── header.component.ts     # Nav bar shared by every page (user menu, categories, cart badge)
 ├── config/
@@ -293,9 +302,10 @@ sequenceDiagram
 │   ├── routes.ts               # App URLs (ROUTES) and API endpoints (enum ApiPath) in one place
 │   └── timeouts.ts             # All timeouts as named constants
 ├── data/
+│   ├── checkout.data.ts        # Data-driven checkout cases: one order per payment method, invalid cards, required address fields
 │   ├── factory.ts              # Faker-based builders: createUser(), createUsers(), createInvalidUser()…
 │   ├── login.data.ts           # Data-driven login cases: invalid input, rejected credentials, accepted variants
-│   ├── messages.ts             # enum LoginMessage: every text the app shows, exactly as rendered
+│   ├── messages.ts             # enum LoginMessage + enum CheckoutMessage: app texts, exactly as rendered
 │   └── products.ts             # Static product references (only for stock-independent checks)
 ├── docker/
 │   ├── toolshop-compose.yml    # Private Toolshop: UI, API, nginx gateway, MariaDB (app pinned to 2.5)
@@ -306,6 +316,12 @@ sequenceDiagram
 │   └── index.ts                # Custom `test`: page objects, API client, cleanup, registeredUser
 ├── pages/
 │   ├── base.page.ts            # Abstract base: holds `page` + `header`
+│   ├── checkout/               # The checkout wizard: one component per step
+│   │   ├── checkout.page.ts    # CheckoutPage: composes the steps, step-2 skip, confirmation, navigation helpers
+│   │   ├── cart.step.ts        # Step 1: enum CartStepLocator + CartStep
+│   │   ├── address.step.ts     # Step 3: enum AddressLocator / AddressField + AddressStep
+│   │   └── payment.step.ts     # Step 4: enum PaymentLocator / PaymentMethod + PaymentDetails type + PaymentStep
+│   ├── invoices.page.ts        # enum InvoiceLocator + InvoiceListPage ("My invoices") + InvoiceDetailPage
 │   ├── login.page.ts           # enum LoginLocator / LoginField / SubmitMethod + login actions
 │   ├── registration.page.ts
 │   ├── product-list.page.ts
@@ -316,6 +332,7 @@ sequenceDiagram
 │   │   └── global.teardown.ts  # Deletes the setup customer, best-effort (runs last)
 │   └── e2e/
 │       ├── cart.spec.ts
+│       ├── checkout.spec.ts    # Full purchase flow per payment method, validation, known bugs
 │       ├── login.spec.ts       # Data-driven negative + edge cases, account lockout
 │       ├── registration.spec.ts
 │       └── concurrent-registration.spec.ts
@@ -390,6 +407,13 @@ The framework is built in layers. Each layer may only use the layers below it:
 | **A fresh account per test (`registeredUser`)**                                                | Cases that need a real account get their own, built from it with small functions such as `(u) => u.email.toUpperCase()`. The lockout test can't lock an account another test uses, so everything stays safe in parallel.                                                                                                         |
 | **Stateful scenarios stay ordinary tests**                                                     | The lockout test depends on the order of its attempts, so it's written as one test with `test.step`s rather than squeezed into a data table.                                                                                                                                                                                     |
 | **Proving "no API call" by counting requests**                                                 | For client-side validation, `loginPage.trackLoginRequests()` counts `POST /users/login` calls. The test asserts the count is 0 once the field errors are visible. No fixed wait for a request that should never happen.                                                                                                          |
+| **A wizard is one page object with one component per step**                                    | `checkoutPage.cart`, `.address` and `.payment` mirror the screens the customer sees, the same composition idea as `header`. Each step file owns its own locator enum, so no file grows huge.                                                                                                                                     |
+| **`PaymentDetails` is a typed union**                                                          | Each payment method has exactly its own fields. TypeScript refuses a gift card with a CVV or a credit card without an expiry date, so invalid test data can't even be written. The `switch` over methods lives in the page object, never in a test.                                                                              |
+| **The happy path is one test per payment method, written as `test.step`s**                     | The report reads like the customer's journey (1. cart … 6. invoice), and a failure names the exact step. Five data rows give five complete purchases with no duplicated code.                                                                                                                                                    |
+| **Wait for auto-filled forms to settle (`expect.poll`)**                                       | The address step first shows the profile address, then the postcode lookup overwrites it, sometimes more than once. Tests poll the form until it equals the lookup result before reading or changing it. Without this, tests failed at random.                                                                                   |
+| **Mock the server to test the UI's error handling**                                            | "The server says 422, what does the page show?" is a UI question. `page.route()` returns a 422 for `POST /invoices`, which is deterministic, creates no data and doesn't depend on provoking a real rejection. The server's own validation is a job for API tests.                                                               |
+| **Records are identified by id, not by display number**                                        | Parallel orders were seen to get the **same** invoice number. Tests take the invoice id from the `POST /invoices` response and open exactly that invoice.                                                                                                                                                                        |
+| **Known bugs are tests that are expected to fail**                                             | `test.fail()` + a `bug` annotation documents the bug in the report and keeps the suite green. When the app is fixed, the test reports "expected to fail, but passed", which is the signal to remove `test.fail()`.                                                                                                               |
 
 ---
 
@@ -405,6 +429,10 @@ The framework is built in layers. Each layer may only use the layers below it:
 | [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | 4 rejected-credential cases: HTTP 401 and a generic error message           | `@regression` `@negative` | Signed out |
 | [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | 3 accepted edge cases: upper-case email, spaces around email, Enter key     | `@regression` `@edge`     | Signed out |
 | [`login.spec.ts`](tests/e2e/login.spec.ts)                                     | Account is locked after 3 wrong passwords; even the correct one gets 423    | `@regression` `@negative` | Signed out |
+| [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 5 complete orders, one per payment method, checked through to the invoice   | `@regression`             | Customer   |
+| [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 5 required address fields: clearing any one blocks the step                 | `@regression` `@negative` | Customer   |
+| [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 5 invalid credit cards: error shown, Finish disabled, nothing sent          | `@regression` `@negative` | Customer   |
+| [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 2 known app bugs, pinned with `test.fail()`                                 | `@known-bug`              | Customer   |
 
 `@stress` tests are excluded from the default run and only run with `npm run test:stress`.
 
@@ -421,6 +449,130 @@ The expected behaviour was checked against the real application, not assumed.
 | Rejected credentials | Unknown email, wrong password, password in the wrong letter case, wrong 3-character password | HTTP 401, `Invalid email or password` (the same text whether the email exists or not)   |
 | Accepted variants    | Email in UPPER CASE, email with spaces around it, submit with Enter                          | HTTP 200, redirected to `/account`, user's name in the nav bar                          |
 | Lockout              | 3 wrong passwords, then the correct one                                                      | HTTP 423, `Account locked, too many failed attempts. Please contact the administrator.` |
+
+---
+
+## Checkout flow
+
+### The journey
+
+```mermaid
+flowchart LR
+    P["Product page<br/>Add to cart"] --> C1["① Cart<br/>proceed-1"]
+    C1 --> C2["② Sign in<br/>proceed-2<br/>(skipped: already signed in)"]
+    C2 --> C3["③ Billing address<br/>pre-filled from postcode lookup<br/>proceed-3"]
+    C3 --> C4["④ Payment<br/>choose method → Finish"]
+    C4 -->|"POST /payment/check → 200<br/>'Payment was successful'"| C5["Finish again"]
+    C5 -->|"POST /invoices → 201"| OK["Confirmation<br/>'Thanks for your order! … INV-…'"]
+    OK --> L["My invoices<br/>/account/invoices"]
+    L --> D["Invoice details<br/>number · total · address · payment method"]
+```
+
+Each order test (`places an order › paid by …`) runs this journey as **6 `test.step`s**, so the HTML report shows exactly where it stopped:
+
+| Step                                     | What it checks                                                                                                              |
+| ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+| 1. cart shows the product and its price  | Exactly one product, with the name and price the API reported (`$14.15`)                                                    |
+| 2. sign-in step is skipped               | The signed-in customer only has to press _Proceed_                                                                          |
+| 3. billing address matches the lookup    | Street, city and state equal `GET /postcode-lookup` for the form's country + postcode (waited for with `expect.poll`)       |
+| 4. payment is accepted                   | `POST /payment/check` returns 200 and the page shows `Payment was successful`                                               |
+| 5. confirming creates an invoice         | `POST /invoices` returns 201, the confirmation text appears, and the `INV-…` number is read from it                         |
+| 6. invoice is listed and shows the order | The invoice (found by **id**) opens from _My invoices_ and shows the right number, total, payment method, city and postcode |
+
+Before every checkout test, `beforeEach` picks an in-stock product through the API, adds it to the cart through the product page and opens `/checkout`. Every test runs in its own browser context, so it has its own cart.
+
+### Two rules the app enforces (and the tests rely on)
+
+1. **The address must match the postcode.** The server looks the postcode up and rejects any city or state that doesn't match (`AddressMatchesCountry` in the Toolshop API). The form pre-fills those values for you, so tests use what the form shows and never type a random factory address.
+2. **"Finish" is pressed twice.** The first press validates the payment (`pay()` → `POST /payment/check`), the second places the order (`confirm()` → `POST /invoices`). Both methods return the API status, so the test decides what's correct.
+
+### Payment methods
+
+| Method            | Fields                                  | Valid test data                                          | Invoice shows       |
+| ----------------- | --------------------------------------- | -------------------------------------------------------- | ------------------- |
+| Cash on Delivery  | none                                    | —                                                        | `Cash on Delivery`  |
+| Credit Card       | number, expiry, CVV, card holder        | `0000-0000-0000-0000`, `12/2030`, `123`, `Test Customer` | `Credit Card`       |
+| Bank Transfer     | bank name, account name, account number | `Test Bank`, `Test Customer`, `12345678`                 | `Bank Transfer`     |
+| Buy Now Pay Later | monthly instalments (3, 6, 9, 12)       | `3`                                                      | `Buy Now Pay Later` |
+| Gift Card         | 16-character number, 4-character code   | `ABCD1234EFGH5678`, `AB12`                               | `Gift Card`         |
+
+### Validation cases
+
+| Group                   | Input                                               | Expected                                                         |
+| ----------------------- | --------------------------------------------------- | ---------------------------------------------------------------- |
+| Required address fields | Clear postcode, house number, street, city or state | _Proceed_ is disabled                                            |
+| Credit card             | `0000000000000000` (no hyphens)                     | `Invalid card number format.`, Finish disabled, no API call      |
+| Credit card             | Expiry `01/2020`                                    | `Expiration date must be in the future.`                         |
+| Credit card             | Expiry `2030-12`                                    | `Invalid date format. Use MM/YYYY.`                              |
+| Credit card             | CVV `12`                                            | `CVV must be 3 or 4 digits.`                                     |
+| Credit card             | Card holder `Test 123`                              | Finish disabled, no API call (the message is missing: known bug) |
+
+### How the page objects map to the screens
+
+```ts
+await checkoutPage.goto(); // /checkout
+await checkoutPage.cart.proceed(); // ① cart
+await checkoutPage.continueAsSignedIn(); // ② sign in
+const address = await checkoutPage.address.values(); // ③ read the pre-filled address
+await checkoutPage.address.proceed();
+await checkoutPage.payment.choose({
+    method: PaymentMethod.GiftCard,
+    giftCardNumber: "ABCD1234EFGH5678",
+    validationCode: "AB12",
+});
+await checkoutPage.payment.pay(); // ④ first Finish → 200
+const { invoiceId } = await checkoutPage.payment.confirm(); // second Finish → 201
+await invoiceListPage.goto();
+await invoiceListPage.open(invoiceId!); // open exactly this invoice
+await expect(invoiceDetailPage.paymentMethod).toHaveValue("Gift Card");
+```
+
+Shortcuts for tests that don't care about the earlier steps: `checkoutPage.goToAddressStep()` and `checkoutPage.goToPaymentStep()`.
+
+### Running it
+
+```bash
+npm run test:checkout                                              # 18 checkout tests (+ setup/teardown)
+npx playwright test tests/e2e/checkout.spec.ts -g "gift card"     # one payment method
+npx playwright test tests/e2e/checkout.spec.ts --repeat-each=2 --retries=0   # stability check
+TEST_ENV=docker npm run test:checkout                              # against the Docker copy
+```
+
+Expected summary: `20 passed`. The two known-bug tests are counted as passed because they fail as expected.
+
+At the end of a run you may see `Cleanup: could not delete user … (HTTP 409)`. Checkout gives the setup customer invoices, and the API refuses to delete a user who has orders. Cleanup is best-effort, so nothing fails; on the Docker copy the database is fresh for every CI run.
+
+---
+
+## Known application bugs
+
+Found while building the checkout suite, and each confirmed against the live application.
+
+| #   | Bug                                                                                                                                                    | Where                 | Covered by                                                                                 |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------- | ------------------------------------------------------------------------------------------ |
+| 1   | When `POST /invoices` fails (for example 422, address doesn't match the postcode), the page shows **no error** and still says "Payment was successful" | Checkout, step 4      | `known bugs › tells the customer when the server rejects the order` (server 422 is mocked) |
+| 2   | A card holder name like `Test 123` disables Finish, but the red error box under the field is **empty**                                                 | Checkout, credit card | `known bugs › explains why a card holder name with digits is rejected`                     |
+| 3   | An **empty** card holder name is not blocked by the form; the server rejects it (422) and the page shows only "Unknown error"                          | Checkout, credit card | Not yet; candidate for a third known-bug test                                              |
+| 4   | Two orders placed at the same moment got the **same invoice number** (`INV-2026000034` twice)                                                          | Invoices (server)     | Worked around: tests find invoices by id. Report it, since invoice numbers must be unique  |
+
+### How known-bug tests work
+
+```ts
+test(
+    "tells the customer when the server rejects the order",
+    { annotation: { type: "bug", description: "…what is wrong and how to see it…" } },
+    async ({ checkoutPage, page }) => {
+        test.fail(); // remove once the app shows the error
+        // … steps …
+        await expect(page.getByText(CheckoutMessage.AddressMismatch)).toBeVisible(); // the expected, correct behaviour
+    },
+);
+```
+
+- The test asserts the **correct** behaviour, so it fails today.
+- `test.fail()` turns that expected failure into a pass, and the `bug` annotation appears on the test in the HTML report.
+- When the bug is fixed, the test fails with _"Expected to fail, but passed"_. Then delete the `test.fail()` line and the test becomes a normal regression test.
+- Keep the setup of a known-bug test deterministic (for example by mocking the server). Otherwise a failure for an unrelated reason would also count as "expected" and hide a real problem.
 
 ---
 
@@ -459,6 +611,18 @@ for (const data of REJECTED_CREDENTIAL_CASES) {
 1. If the app shows a new text, add it to `LoginMessage` in [`data/messages.ts`](data/messages.ts).
 2. Add one object to the matching array in [`data/login.data.ts`](data/login.data.ts).
 3. Run `npm run test:login`. The new test appears automatically, named after its `title`.
+
+### Adding a checkout case
+
+The checkout data lives in [`data/checkout.data.ts`](data/checkout.data.ts):
+
+| Array                     | One entry means                               | Example                                                                                                                                         |
+| ------------------------- | --------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| `PAYMENT_CASES`           | A complete order paid with these details      | `{ title: "buy now pay later (12 months)", label: "Buy Now Pay Later", details: { method: PaymentMethod.BuyNowPayLater, installments: "12" } }` |
+| `INVALID_CARD_CASES`      | A card the form must reject with this message | `{ title: "CVV of 5 digits", card: { ...VALID_CARD, cvv: "12345" }, message: CheckoutMessage.InvalidCvv }`                                      |
+| `REQUIRED_ADDRESS_FIELDS` | An address field that must not be empty       | `AddressField.Street`                                                                                                                           |
+
+Then run `npm run test:checkout`. TypeScript checks that `details` has exactly the fields its payment method needs.
 
 Only add cases whose behaviour you have confirmed in the app, for example with `npm run test:ui` or the browser's DevTools.
 
@@ -558,6 +722,8 @@ TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 | Fixture                                                                 | Gives you                                                                                                    |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
 | `loginPage`, `registrationPage`, `productListPage`, `productDetailPage` | Ready-made page objects on the test's `page`                                                                 |
+| `checkoutPage`                                                          | The checkout wizard: `.cart`, `.address`, `.payment` steps plus confirmation and navigation helpers          |
+| `invoiceListPage`, `invoiceDetailPage`                                  | "My invoices" (open an invoice by id) and the invoice details page                                           |
 | `api`                                                                   | `ToolshopApi` REST client                                                                                    |
 | `cleanupUsers`                                                          | An array: push ids of users you create and they're deleted after the test (best-effort)                      |
 | `registeredUser`                                                        | A fresh customer (`User`, including `email` and `password`), registered via API and cleaned up automatically |
@@ -574,7 +740,11 @@ TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 - **No hard waits** (`waitForTimeout`). Wait for a response, a URL or an element state.
 - **No hard-coded live data.** Product ids and stock come from the API at runtime, and users come from the factory.
 - **Every test cleans up** what it creates. Push created user ids into `cleanupUsers`.
-- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage, `@negative` for invalid input and rejections, `@edge` for unusual-but-valid input, and `@stress` for opt-in load-style tests.
+- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage, `@negative` for invalid input and rejections, `@edge` for unusual-but-valid input, `@known-bug` for tests pinning an app bug, and `@stress` for opt-in load-style tests.
+- **Known app bugs:** write the test for the correct behaviour, add `test.fail()` and a `bug` annotation, tag it `@known-bug`, and list the bug under [Known application bugs](#known-application-bugs).
+- **Elements without a `data-test` id** (for example `#order-confirmation`) still get their selector from an enum (`CheckoutSelector`), never from a string literal in a constructor.
+- **Wait for auto-filled forms** to reach their final values (`expect.poll`) before reading or changing them.
+- **Identify records by id**, never by a display number or name that might not be unique.
 - **Test titles describe behaviour:** _"customer can add a product to the cart"_, not _"test cart 1"_.
 - **Magic numbers go in `config/`:** timeouts in `timeouts.ts`, URLs in `routes.ts`.
 - **Commit only green code:** `npm run typecheck && npm run lint && npm run format:check && npm test`. Run `npm run format` after editing any file, including YAML and Markdown, because CI checks formatting too.
@@ -717,22 +887,27 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ### Tests
 
-| Symptom                                                                                               | Cause                                                                                | Fix                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `Login failed for …: Account locked, too many failed attempts`                                        | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset.                    |
-| `Login failed for …: Invalid email or password`                                                       | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                                       |
-| `Missing environment variable "ADMIN_EMAIL"`                                                          | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                                    |
-| `Register failed: {"email":["The email field is required."]}` (HTTP 422)                              | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                                          |
-| Add-to-cart button disabled / click timeout                                                           | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                                               |
-| `response.json: No resource with given identifier found`                                              | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                                    |
-| Many `500`s or unexpected `401`s around `hh:00` (live site)                                           | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                                     |
-| Test timeout; a page request in the trace never got a response (`-1`)                                 | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                                    |
-| `project 'setup' has unknown teardown project 'teardown'`                                             | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                                          |
-| Both setup tests time out (`page.goto` / `apiRequestContext.post`) and every other test "did not run" | The target site was down or unreachable; all tests depend on `setup`                 | Check the site (`curl …/status`), wait and re-run, or use the Docker copy. With `TEST_ENV=docker`, make sure `npm run toolshop:up` ran |
-| `Error: No tests found.` when running one file or `npm run test:login`                                | The file path doesn't match a real file (for example a typo in the file name)        | `ls tests/e2e` and fix the file name or the path in the script                                                                         |
-| A login test fails with `423` / `Account locked` unexpectedly                                         | Several tests shared one account and together hit the 3-failure limit                | Use the `registeredUser` fixture so every test has its own account                                                                     |
-| Terminal stuck after a run, `Ctrl+C` seems ignored                                                    | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                                              |
-| Imports with `@pages/…` show red in VS Code                                                           | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                                       |
+| Symptom                                                                                                   | Cause                                                                                | Fix                                                                                                                                    |
+| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `Login failed for …: Account locked, too many failed attempts`                                            | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset.                    |
+| `Login failed for …: Invalid email or password`                                                           | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                                       |
+| `Missing environment variable "ADMIN_EMAIL"`                                                              | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                                    |
+| `Register failed: {"email":["The email field is required."]}` (HTTP 422)                                  | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                                          |
+| Add-to-cart button disabled / click timeout                                                               | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                                               |
+| `response.json: No resource with given identifier found`                                                  | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                                    |
+| Many `500`s or unexpected `401`s around `hh:00` (live site)                                               | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                                     |
+| Test timeout; a page request in the trace never got a response (`-1`)                                     | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                                    |
+| `project 'setup' has unknown teardown project 'teardown'`                                                 | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                                          |
+| Both setup tests time out (`page.goto` / `apiRequestContext.post`) and every other test "did not run"     | The target site was down or unreachable; all tests depend on `setup`                 | Check the site (`curl …/status`), wait and re-run, or use the Docker copy. With `TEST_ENV=docker`, make sure `npm run toolshop:up` ran |
+| `Error: No tests found.` when running one file or `npm run test:login`                                    | The file path doesn't match a real file (for example a typo in the file name)        | `ls tests/e2e` and fix the file name or the path in the script                                                                         |
+| A login test fails with `423` / `Account locked` unexpectedly                                             | Several tests shared one account and together hit the 3-failure limit                | Use the `registeredUser` fixture so every test has its own account                                                                     |
+| `npm run typecheck`: `File '…/pages/invoices.page.ts' is not a module` (+ `implicitly has an 'any' type`) | The file is empty: it was created but its content was never saved                    | Paste the content, save (_Ctrl+S_), check with `wc -c pages/invoices.page.ts`. Consider _File → Auto Save_                             |
+| Checkout: address doesn't match the lookup, or a changed city is "accepted" anyway                        | The form was read or edited before the postcode lookup finished overwriting it       | Call `waitForAddressLookup()` (in the spec) before reading or changing the address                                                     |
+| `strict mode violation … resolved to 2 elements` on the invoice list                                      | Two invoices share one invoice number (app bug #4)                                   | Open invoices by id: `invoiceListPage.open(invoiceId)`                                                                                 |
+| A known-bug test fails with _"Expected to fail, but passed"_                                              | The app bug has been fixed                                                           | Remove `test.fail()` from that test and move the bug out of [Known application bugs](#known-application-bugs)                          |
+| `Cleanup: could not delete user … (HTTP 409)` at the end of a run                                         | The setup customer has invoices; the API won't delete users with orders              | Nothing to do: cleanup is best-effort. On Docker the database is fresh for each CI run                                                 |
+| Terminal stuck after a run, `Ctrl+C` seems ignored                                                        | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                                              |
+| Imports with `@pages/…` show red in VS Code                                                               | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                                       |
 
 ### CI and Docker
 
@@ -755,8 +930,11 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 - [ ] Roll the enum-locator pattern out to `HeaderComponent`, `RegistrationPage`, `ProductListPage` and `ProductDetailPage`
 - [ ] Data-driven negative cases for registration, built the same way as login
 - [ ] A "Toolshop is reachable" health check as the first setup step, so an outage shows one clear error
-- [ ] API test suite (`tests/api/`) for contract checks of `/products`, `/carts` and `/users`
-- [ ] Checkout flow: cart → address → payment → invoice
+- [x] Checkout flow: cart → address → payment → invoice, all five payment methods, validation, known-bug tests
+- [ ] Report the four [known application bugs](#known-application-bugs) to the app's maintainers
+- [ ] Known-bug test for bug #3 (empty card holder name only gets "Unknown error")
+- [ ] API test suite (`tests/api/`) for contract checks of `/products`, `/carts`, `/users` and `/invoices`, including the address-matches-postcode rule
+- [ ] Guest checkout (`POST /invoices/guest`) and checkout with several products and quantities
 - [ ] Admin scenarios (product and order management) using the saved admin session
 - [ ] Visual regression snapshots for key pages
 - [ ] Accessibility checks with `@axe-core/playwright`

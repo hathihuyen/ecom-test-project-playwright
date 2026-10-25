@@ -7,6 +7,8 @@ import { ToolshopApi } from "@api/toolshop.api";
 import { env } from "@config/env";
 import { createUser } from "@data/factory";
 import { User } from "@models/user";
+import { CheckoutPage } from "@pages/checkout/checkout.page";
+import { InvoiceDetailPage, InvoiceListPage } from "@pages/invoices.page";
 
 type Fixtures = {
     loginPage: LoginPage;
@@ -18,6 +20,9 @@ type Fixtures = {
     cleanupUsers: string[];
     /** A brand-new customer registered through the API; deleted after the test. */
     registeredUser: User;
+    checkoutPage: CheckoutPage;
+    invoiceListPage: InvoiceListPage;
+    invoiceDetailPage: InvoiceDetailPage;
 };
 
 export const test = base.extend<Fixtures>({
@@ -52,6 +57,15 @@ export const test = base.extend<Fixtures>({
         const user = createUser();
         cleanupUsers.push(await api.registerUser(user));
         await use(user);
+    },
+    checkoutPage: async ({ page }, use) => {
+        await use(new CheckoutPage(page));
+    },
+    invoiceListPage: async ({ page }, use) => {
+        await use(new InvoiceListPage(page));
+    },
+    invoiceDetailPage: async ({ page }, use) => {
+        await use(new InvoiceDetailPage(page));
     },
 });
 

@@ -1,6 +1,7 @@
 import { APIRequestContext, expect } from "@playwright/test";
 import { env } from "@config/env";
 import { User } from "@models/user";
+import { ApiPath } from "@config/routes";
 
 /**
  * The field names follow the API's own documentation at api.practicesoftwaretesting.com/api/documentation.
@@ -46,7 +47,7 @@ export class ToolshopApi {
     }
 
     // First product in the category that is in stock right now (stock on the demo site changes all day).
-    async findInStockProduct(categorySlug: string): Promise<{ id: string; name: string }> {
+    async findInStockProduct(categorySlug: string): Promise<{ id: string; name: string; price: number }> {
         const response = await this.request.get(`${env.apiUrl}/products`, {
             params: { by_category_slug: categorySlug, is_rental: "false" },
         });
@@ -55,7 +56,7 @@ export class ToolshopApi {
         const { data } = await response.json();
         const product = data.find((p: { in_stock: boolean }) => p.in_stock);
         if (!product) throw new Error(`No in-stock product found in category "${categorySlug}"`);
-        return { id: product.id, name: product.name };
+        return { id: product.id, name: product.name, price: product.price };
     }
 
     // Admin only. Never fails the test: a user with orders cannot be deleted (409).
@@ -66,5 +67,14 @@ export class ToolshopApi {
         if (![204, 404].includes(response.status())) {
             console.warn(`Cleanup: could not delete user ${userId} (HTTP ${response.status()})`);
         }
+    }
+
+    /** The city/state the API expects for a postcode (the checkout validates addresses against this). */
+    async lookupPostcode(country: string, postcode: string): Promise<{ street: string; city: string; state: string }> {
+        const response = await this.request.get(`${env.apiUrl}${ApiPath.PostcodeLookup}`, {
+            params: { country, postcode },
+        });
+        expect(response.status(), `Postcode lookup failed: ${await response.text()}`).toBe(200);
+        return response.json();
     }
 }
