@@ -2,6 +2,7 @@ import { APIRequestContext, expect } from "@playwright/test";
 import { env } from "@config/env";
 import { User } from "@models/user";
 import { ApiPath } from "@config/routes";
+import { toRegisterPayload } from "./payloads";
 
 /**
  * The field names follow the API's own documentation at api.practicesoftwaretesting.com/api/documentation.
@@ -18,22 +19,7 @@ export class ToolshopApi {
     // Register a user directly through the API; returns the new user's id.
     async registerUser(user: User): Promise<string> {
         const response = await this.request.post(`${env.apiUrl}/users/register`, {
-            data: {
-                first_name: user.firstName,
-                last_name: user.lastName,
-                dob: user.dob,
-                phone: user.phone,
-                email: user.email,
-                password: user.password,
-                address: {
-                    street: user.streetAddress,
-                    house_number: user.houseNumber,
-                    city: user.city,
-                    state: user.state,
-                    country: user.country,
-                    postal_code: user.zip,
-                },
-            },
+            data: toRegisterPayload(user),
         });
         expect(response.status(), `Register failed: ${await response.text()}`).toBe(201);
         return (await response.json()).id;

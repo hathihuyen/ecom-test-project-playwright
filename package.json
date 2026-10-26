@@ -20,7 +20,8 @@
         "toolshop:seed": "docker compose -f docker/toolshop-compose.yml exec -T laravel-api php artisan migrate:fresh --seed --force",
         "toolshop:down": "docker compose -f docker/toolshop-compose.yml down -v",
         "test:login": "playwright test tests/e2e/login.spec.ts",
-        "test:checkout": "playwright test tests/e2e/checkout.spec.ts"
+        "test:checkout": "playwright test tests/e2e/checkout.spec.ts",
+        "test:api": "playwright test --project=api"
     },
     "author": "",
     "license": "ISC",
@@ -36,7 +37,8 @@
         "eslint-plugin-playwright": "^2.12.1",
         "prettier": "^3.9.10",
         "typescript": "^6.0.3",
-        "typescript-eslint": "^8.72.0"
+        "typescript-eslint": "^8.72.0",
+        "zod": "^4.6.7"
     },
     "private": true,
     "engines": {

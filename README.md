@@ -8,7 +8,7 @@
 
 End-to-end test automation for the [Practice Software Testing – Toolshop](https://practicesoftwaretesting.com), a demo e-commerce web shop, built with **Playwright** and **TypeScript**.
 
-It covers the customer journey end to end: **registration, login, cart and a full checkout** (cart → address → payment → invoice) with all five payment methods.
+It covers the customer journey end to end: **registration, login, cart and a full checkout** (cart → address → payment → invoice) with all five payment methods. A separate **API contract suite** checks the REST endpoints for `/products`, `/carts` and `/users` directly, without a browser: status codes, response shapes (validated with [zod](https://zod.dev) schemas) and access rules.
 
 The framework tests the **UI** like a real customer would. It uses the shop's **REST API** to prepare and clean up test data quickly and reliably. Each test run creates its own user accounts and data and deletes them afterwards. Shared demo accounts, product stock or leftover state from earlier runs can't make it fail.
 
@@ -31,15 +31,16 @@ The same suite runs against two targets with no code changes:
 8. [Architecture & design decisions](#architecture--design-decisions)
 9. [Test coverage](#test-coverage)
 10. [Checkout flow](#checkout-flow)
-11. [Known application bugs](#known-application-bugs)
-12. [Data-driven tests](#data-driven-tests)
-13. [Writing a new test](#writing-a-new-test)
-14. [Conventions](#conventions)
-15. [Reports & debugging](#reports--debugging)
-16. [Continuous integration](#continuous-integration)
-17. [Configuration reference](#configuration-reference)
-18. [Troubleshooting](#troubleshooting)
-19. [Roadmap](#roadmap)
+11. [API contract tests](#api-contract-tests)
+12. [Known application bugs](#known-application-bugs)
+13. [Data-driven tests](#data-driven-tests)
+14. [Writing a new test](#writing-a-new-test)
+15. [Conventions](#conventions)
+16. [Reports & debugging](#reports--debugging)
+17. [Continuous integration](#continuous-integration)
+18. [Configuration reference](#configuration-reference)
+19. [Troubleshooting](#troubleshooting)
+20. [Roadmap](#roadmap)
 
 ---
 
@@ -51,6 +52,7 @@ The same suite runs against two targets with no code changes:
 | **Enum-based locators**            | Every `data-test` id lives in an `enum` at the top of its page file. Constructors never contain string literals.                 |
 | **Data-driven tests**              | Test cases are typed data arrays (`data/*.data.ts`). Adding a case means adding one object, with no new test code.               |
 | **Full purchase flow**             | One test per payment method walks cart → address → payment → invoice and checks the invoice the customer sees afterwards.        |
+| **API contract tests**             | 24 browser-free tests check status codes, JSON shapes (zod schemas) and who may call what. The whole suite runs in seconds.      |
 | **Known-bug tests**                | Real app bugs are pinned with `test.fail()` + a `bug` annotation. They turn red the moment the bug is fixed, so you notice.      |
 | **Custom fixtures**                | Tests ask for `registrationPage`, `api` and so on, and get ready-to-use objects. Nothing needs `new` inside a test.              |
 | **API-first test data**            | Users are created through the REST API in about a second. The UI is used only for the behaviour under test.                      |
@@ -73,6 +75,7 @@ The same suite runs against two targets with no code changes:
 | [Playwright Test](https://playwright.dev)                                                                                                                                       | Test runner, browser automation, API requests, tracing |
 | [TypeScript](https://www.typescriptlang.org)                                                                                                                                    | Static typing (strict mode), path aliases              |
 | [Faker.js](https://fakerjs.dev)                                                                                                                                                 | Realistic random test data                             |
+| [zod](https://zod.dev)                                                                                                                                                          | Response schemas for the API contract tests            |
 | [dotenv](https://github.com/motdotla/dotenv)                                                                                                                                    | Loads `.env` files per environment                     |
 | [ESLint](https://eslint.org) + [typescript-eslint](https://typescript-eslint.io) + [eslint-plugin-playwright](https://github.com/playwright-community/eslint-plugin-playwright) | Static analysis and Playwright best practices          |
 | [Prettier](https://prettier.io)                                                                                                                                                 | Consistent code formatting                             |
@@ -189,24 +192,25 @@ npm run toolshop:down          # stop and remove everything, including data
 
 ### npm scripts
 
-| Command                           | What it does                                                    |
-| --------------------------------- | --------------------------------------------------------------- |
-| `npm test`                        | Run the full suite (setup → tests → teardown)                   |
-| `npm run test:smoke`              | Only tests tagged `@smoke`, a fast confidence check             |
-| `npm run test:regression`         | Only tests tagged `@regression`                                 |
-| `npm run test:stress`             | The opt-in concurrency test (`@stress`), in its own project     |
-| `npm run test:login`              | Only the login suite (`tests/e2e/login.spec.ts`)                |
-| `npm run test:checkout`           | Only the checkout suite (`tests/e2e/checkout.spec.ts`)          |
-| `npm run test:headed`             | Run with a visible browser window                               |
-| `npm run test:ui`                 | Playwright **UI mode**: watch, time-travel, re-run single tests |
-| `npm run test:debug`              | Step through a test with the Playwright Inspector               |
-| `npm run report`                  | Open the last HTML report                                       |
-| `npm run typecheck`               | TypeScript type check (`tsc --noEmit`)                          |
-| `npm run lint` / `lint:fix`       | ESLint, optionally auto-fixing                                  |
-| `npm run format` / `format:check` | Prettier write / verify                                         |
-| `npm run toolshop:up`             | Start the private Toolshop in Docker (builds `web` if needed)   |
-| `npm run toolshop:seed`           | Create the Docker Toolshop's database tables and demo data      |
-| `npm run toolshop:down`           | Stop the Docker Toolshop and delete its data                    |
+| Command                           | What it does                                                     |
+| --------------------------------- | ---------------------------------------------------------------- |
+| `npm test`                        | Run the full suite (setup → tests → teardown)                    |
+| `npm run test:smoke`              | Only tests tagged `@smoke`, a fast confidence check              |
+| `npm run test:regression`         | Only tests tagged `@regression`                                  |
+| `npm run test:stress`             | The opt-in concurrency test (`@stress`), in its own project      |
+| `npm run test:login`              | Only the login suite (`tests/e2e/login.spec.ts`)                 |
+| `npm run test:checkout`           | Only the checkout suite (`tests/e2e/checkout.spec.ts`)           |
+| `npm run test:api`                | Only the API contract tests (`tests/api/`), no browser, no setup |
+| `npm run test:headed`             | Run with a visible browser window                                |
+| `npm run test:ui`                 | Playwright **UI mode**: watch, time-travel, re-run single tests  |
+| `npm run test:debug`              | Step through a test with the Playwright Inspector                |
+| `npm run report`                  | Open the last HTML report                                        |
+| `npm run typecheck`               | TypeScript type check (`tsc --noEmit`)                           |
+| `npm run lint` / `lint:fix`       | ESLint, optionally auto-fixing                                   |
+| `npm run format` / `format:check` | Prettier write / verify                                          |
+| `npm run toolshop:up`             | Start the private Toolshop in Docker (builds `web` if needed)    |
+| `npm run toolshop:seed`           | Create the Docker Toolshop's database tables and demo data       |
+| `npm run toolshop:down`           | Stop the Docker Toolshop and delete its data                     |
 
 ### Useful Playwright CLI options
 
@@ -218,6 +222,8 @@ npx playwright test --grep @known-bug                 # only the tests that pin 
 npx playwright test --grep-invert @known-bug          # everything except the known-bug tests
 npx playwright test --repeat-each=5                   # hunt for flaky tests
 npx playwright test --project=setup                   # only the login setup
+npx playwright test --project=api --grep @negative    # only the negative API tests
+npx playwright test tests/api/carts.api.spec.ts       # one API spec
 npx playwright test --list                            # list tests without running them
 TEST_ENV=docker npx playwright test                   # use .env.docker (the Docker Toolshop)
 ALL_BROWSERS=1 npx playwright test                    # add Firefox and WebKit projects
@@ -248,6 +254,10 @@ flowchart LR
         C1["Delete the setup customer<br/>via admin API"]
     end
 
+    subgraph api ["api project (independent, no browser)"]
+        P1["tests/api/*.api.spec.ts<br/>HTTP requests only"]
+    end
+
     setup --> tests --> teardown
 ```
 
@@ -257,6 +267,7 @@ flowchart LR
     - Logins use `LoginPage.loginAs()`. If the site rejects a login, the error contains the site's own message (for example _"Account locked…"_), not a generic timeout.
 2. **`chromium`** runs the specs in parallel. Each test starts **already signed in as the customer**, because the project's `storageState` points at the saved session. Specs that need a signed-out browser (registration) override this with an empty storage state.
 3. **`teardown`** ([`tests/setup/global.teardown.ts`](tests/setup/global.teardown.ts)) runs after all tests have finished and deletes the setup customer through the admin API. It is **best-effort**: if the delete fails (for example because the live site's database is being reset), it logs a warning instead of failing a run whose tests passed.
+4. **`api`** runs `tests/api/` **in parallel with everything else**. It has no dependency on `setup` and no saved session: each API test creates the users, tokens and carts it needs through fixtures, so `npm run test:api` starts straight away and never opens a browser. The browser projects ignore `tests/api/`, so API tests run exactly once. See [API contract tests](#api-contract-tests).
 
 ### Inside a single test
 
@@ -293,7 +304,18 @@ sequenceDiagram
 ├── .github/workflows/
 │   └── playwright.yml          # CI: quality gate → Docker Toolshop → E2E tests → reports
 ├── api/
-│   └── toolshop.api.ts         # Typed REST client: register, login, find product, postcode lookup, delete user
+│   ├── toolshop.api.ts         # Helper client for test DATA: register, login, find product, postcode lookup, delete user
+│   ├── payloads.ts             # toRegisterPayload(user): the one place a `User` becomes a register request body
+│   ├── clients/                # Thin endpoint clients for the API TESTS: build requests, return the raw response
+│   │   ├── api-client.ts       # Abstract base: url(path), headers(token?)
+│   │   ├── products.client.ts  # list, get, search
+│   │   ├── carts.client.ts     # create, get, addItem, updateQuantity, removeItem, delete
+│   │   └── users.client.ts     # register, login, me, list, get, delete
+│   └── schemas/                # zod schemas = the API contract
+│       ├── common.schema.ts    # IdSchema (ULID), paginated(), the three error shapes
+│       ├── product.schema.ts   # Product (search / list / detail shapes), brand, image, specs
+│       ├── cart.schema.ts      # Cart, cart item, "created" and "result" confirmations
+│       └── user.schema.ts      # Registered user, current user, admin view, token
 ├── components/
 │   └── header.component.ts     # Nav bar shared by every page (user menu, categories, cart badge)
 ├── config/
@@ -313,7 +335,8 @@ sequenceDiagram
 │       ├── Dockerfile
 │       └── vhost.conf
 ├── fixtures/
-│   └── index.ts                # Custom `test`: page objects, API client, cleanup, registeredUser
+│   ├── index.ts                # Custom `test`: page objects, API clients, tokens, cartId, cleanup, registeredUser
+│   └── matchers.ts             # Custom `expect` with toMatchSchema() + expectResponse() helper
 ├── pages/
 │   ├── base.page.ts            # Abstract base: holds `page` + `header`
 │   ├── checkout/               # The checkout wizard: one component per step
@@ -330,6 +353,10 @@ sequenceDiagram
 │   ├── setup/
 │   │   ├── auth.setup.ts       # Creates customer + saves sessions (runs first)
 │   │   └── global.teardown.ts  # Deletes the setup customer, best-effort (runs last)
+│   ├── api/                    # API contract tests (`api` project, no browser)
+│   │   ├── products.api.spec.ts
+│   │   ├── carts.api.spec.ts
+│   │   └── users.api.spec.ts
 │   └── e2e/
 │       ├── cart.spec.ts
 │       ├── checkout.spec.ts    # Full purchase flow per payment method, validation, known bugs
@@ -374,14 +401,17 @@ Imports inside the same folder stay relative, for example `./base.page`.
 The framework is built in layers. Each layer may only use the layers below it:
 
 ```
- Specs (tests/e2e)          what to test       — readable scenarios, tags, assertions
+ Specs (tests/e2e, tests/api)  what to test       — readable scenarios, tags, assertions
     │
- Fixtures (fixtures/)       wiring             — builds page objects / API client, cleans up
+ Fixtures (fixtures/)          wiring             — builds page objects / API clients, tokens, cleans up
+ Matchers (fixtures/matchers)  custom assertions  — toMatchSchema, expectResponse
     │
- Page objects + components  how to do it (UI)  — locators and user actions
- API client                 how to do it (API) — data setup and cleanup
+ Page objects + components     how to do it (UI)  — locators and user actions
+ ToolshopApi (api/)            how to do it (API) — data setup and cleanup
+ Endpoint clients (api/clients) API under test    — one method per endpoint, raw responses
+ Schemas (api/schemas)         the contract       — what a valid response looks like
     │
- Config / data / types      shared foundations — env, routes, timeouts, factories, models
+ Config / data / types         shared foundations — env, routes, timeouts, factories, models, payloads
 ```
 
 ### Key decisions and why
@@ -414,6 +444,11 @@ The framework is built in layers. Each layer may only use the layers below it:
 | **Mock the server to test the UI's error handling**                                            | "The server says 422, what does the page show?" is a UI question. `page.route()` returns a 422 for `POST /invoices`, which is deterministic, creates no data and doesn't depend on provoking a real rejection. The server's own validation is a job for API tests.                                                               |
 | **Records are identified by id, not by display number**                                        | Parallel orders were seen to get the **same** invoice number. Tests take the invoice id from the `POST /invoices` response and open exactly that invoice.                                                                                                                                                                        |
 | **Known bugs are tests that are expected to fail**                                             | `test.fail()` + a `bug` annotation documents the bug in the report and keeps the suite green. When the app is fixed, the test reports "expected to fail, but passed", which is the signal to remove `test.fail()`.                                                                                                               |
+| **Two kinds of API code: `ToolshopApi` for data, endpoint clients for API tests**              | `ToolshopApi` _asserts_ (for example "register must return 201") because a UI test needs the data, not a lesson in status codes. Endpoint clients _never_ assert and return the raw `APIResponse`, because in an API test the status and body **are** the thing under test, including the 401s and 422s.                         |
+| **Response shapes checked with zod schemas**                                                   | `toEqual` on a whole body breaks on every new product. A schema states the rules instead (ids are 26-character ULIDs, `price` is a non-negative number, `password` never appears) and checks every item in a list. The error message names each field that broke the contract.                                                   |
+| **One `expectResponse(response, status, schema)` call per request**                            | Status, `Content-Type: application/json` and schema are checked together, and the body comes back **typed** from the schema, so the test can use `page.data[0].id` with autocomplete. A wrong status shows the response body in the failure message.                                                                             |
+| **API tests in their own `api` project**                                                       | They need no browser and no login session, so they don't depend on `setup` and run in seconds. The browser projects ignore `tests/api/`, so nothing runs twice.                                                                                                                                                                  |
+| **Request bodies built in one place (`api/payloads.ts`)**                                      | `ToolshopApi.registerUser()` and the users API tests send the same `toRegisterPayload(user)`. When the API renames a field, there is one line to change.                                                                                                                                                                         |
 
 ---
 
@@ -433,8 +468,11 @@ The framework is built in layers. Each layer may only use the layers below it:
 | [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 5 required address fields: clearing any one blocks the step                 | `@regression` `@negative` | Customer   |
 | [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 5 invalid credit cards: error shown, Finish disabled, nothing sent          | `@regression` `@negative` | Customer   |
 | [`checkout.spec.ts`](tests/e2e/checkout.spec.ts)                               | 2 known app bugs, pinned with `test.fail()`                                 | `@known-bug`              | Customer   |
+| [`products.api.spec.ts`](tests/api/products.api.spec.ts)                       | 6 tests: paging, product details, search, unknown id → 404                  | `@api` `@contract`        | none (API) |
+| [`carts.api.spec.ts`](tests/api/carts.api.spec.ts)                             | 6 tests: create, add / update / remove item, delete, 404, invalid items 422 | `@api` `@contract`        | none (API) |
+| [`users.api.spec.ts`](tests/api/users.api.spec.ts)                             | 12 tests: register, login, token, admin view, access rules, delete          | `@api` `@contract`        | none (API) |
 
-`@stress` tests are excluded from the default run and only run with `npm run test:stress`.
+`@stress` tests are excluded from the default run and only run with `npm run test:stress`. The negative API tests also carry `@negative`. Every API case is listed in [API contract tests](#api-contract-tests).
 
 ### Login cases in detail
 
@@ -541,6 +579,272 @@ TEST_ENV=docker npm run test:checkout                              # against the
 Expected summary: `20 passed`. The two known-bug tests are counted as passed because they fail as expected.
 
 At the end of a run you may see `Cleanup: could not delete user … (HTTP 409)`. Checkout gives the setup customer invoices, and the API refuses to delete a user who has orders. Cleanup is best-effort, so nothing fails; on the Docker copy the database is fresh for every CI run.
+
+---
+
+## API contract tests
+
+The UI tests answer _"can a customer do it?"_. The API tests answer _"does each endpoint keep its promise?"_ They send HTTP requests straight to the REST API, with no browser, and check three things:
+
+1. **Status code:** `201` on create, `401` without a token, `422` on invalid input, and so on.
+2. **Contract (response shape):** every field the frontend relies on is there, with the right type. This is checked with a [zod](https://zod.dev) schema.
+3. **Behaviour:** the data is right. Page 2 has different products than page 1, a removed cart item is really gone, and a customer can't list all users.
+
+They are fast (the 24 tests take about 7 seconds), they find backend bugs before the UI hides them, and they test things the UI can't reach, such as _"the register response never contains the password"_.
+
+### Running them
+
+```bash
+npm run test:api                                        # all API tests (project "api")
+npx playwright test --project=api --grep @negative      # only the negative ones
+npx playwright test tests/api/users.api.spec.ts         # one spec
+TEST_ENV=docker npm run test:api                        # against the Docker copy
+```
+
+`npm test` and CI run them as well, because CI runs every project. They need only `API_URL` and the admin credentials from `.env`.
+
+### The building blocks
+
+```
+tests/api/carts.api.spec.ts        what to check
+        │  asks for fixtures: cartsApi, cartId, api
+        ▼
+fixtures/index.ts                  builds the clients, creates the cart, deletes it afterwards
+        │
+api/clients/carts.client.ts        sends POST /carts/{id} …, returns the raw APIResponse
+        │
+fixtures/matchers.ts               expectResponse(response, 200, CartSchema)
+        │                          → status ✓  JSON content type ✓  schema ✓  → typed body
+api/schemas/cart.schema.ts         what a valid cart looks like
+```
+
+| Piece                                  | File                                                     | Job                                                                                        |
+| -------------------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| **Endpoint client**                    | `api/clients/*.client.ts`                                | One method per endpoint. Builds URL, body and headers; returns the response, never asserts |
+| **Base client**                        | [`api/clients/api-client.ts`](api/clients/api-client.ts) | `url(path)` adds `API_URL`; `headers(token?)` adds `Accept` and an optional bearer token   |
+| **Schema**                             | `api/schemas/*.schema.ts`                                | The contract: field names, types and rules                                                 |
+| **Payload builder**                    | [`api/payloads.ts`](api/payloads.ts)                     | Turns the shared `User` model into the register body (shared with `ToolshopApi`)           |
+| **`expectResponse` / `toMatchSchema`** | [`fixtures/matchers.ts`](fixtures/matchers.ts)           | The assertions                                                                             |
+| **Fixtures**                           | [`fixtures/index.ts`](fixtures/index.ts)                 | Clients, tokens and a throw-away cart, with cleanup                                        |
+| **Endpoints**                          | `ApiPath` in [`config/routes.ts`](config/routes.ts)      | `Me`, `Users`, `Products`, `ProductSearch`, `Carts` (+ the existing ones)                  |
+
+#### Endpoint clients: no assertions inside
+
+```ts
+// api/clients/carts.client.ts
+export class CartsClient extends ApiClient {
+    addItem(cartId: string, productId: string, quantity: number) {
+        return this.request.post(this.url(`${ApiPath.Carts}/${cartId}`), {
+            data: { product_id: productId, quantity },
+            headers: this.headers(),
+        });
+    }
+}
+```
+
+The client doesn't know whether `422` is good or bad. That depends on the test: in a negative test, `422` is exactly what you want. That's why clients return the raw `APIResponse` and leave every `expect` to the spec.
+
+> **`ToolshopApi` vs. the clients.** [`api/toolshop.api.ts`](api/toolshop.api.ts) stays the helper for **preparing data** in any test. It asserts internally (`registerUser` fails loudly if the API doesn't return 201) and returns plain values such as an id or a token. The clients in `api/clients/` are for **testing the API itself**. Use `api.registerUser()` when you just need a user; use `usersApi.register()` when the register endpoint is what you're testing.
+
+#### Schemas: the contract
+
+A schema describes what a valid response looks like. Example from [`api/schemas/cart.schema.ts`](api/schemas/cart.schema.ts):
+
+```ts
+export const CartItemSchema = z.object({
+    id: IdSchema, // a 26-character ULID
+    cart_id: IdSchema,
+    product_id: IdSchema,
+    quantity: z.number().int().positive(),
+    discount_percentage: z.number().nullable(), // may be null, but must be present
+    product: z.object({ id: IdSchema, name: z.string().min(1), price: z.number().nonnegative() }),
+});
+```
+
+Shared building blocks live in [`api/schemas/common.schema.ts`](api/schemas/common.schema.ts):
+
+| Schema                  | Shape                                                                                            | Used by                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------ | --------------------------------------------- |
+| `IdSchema`              | string of exactly 26 characters (Toolshop ids are ULIDs)                                         | every id                                      |
+| `paginated(itemSchema)` | Laravel's page wrapper: `current_page`, `data[]`, `from`, `last_page`, `per_page`, `to`, `total` | `GET /products`, `/products/search`, `/users` |
+| `MessageErrorSchema`    | `{ "message": "…" }`                                                                             | most `401` / `403` / `404` responses          |
+| `SimpleErrorSchema`     | `{ "error": "…" }`                                                                               | login `401`, `GET /users/{id}` `404`          |
+| `FieldErrorsSchema`     | `{ "<field>": ["…"] }`                                                                           | register `409` / `422`                        |
+| `ValidationErrorSchema` | `{ "message": "…", "errors": { "<field>": ["…"] } }`                                             | carts `422`                                   |
+
+Things about this API that the schemas capture, all checked against the real responses:
+
+- **Error bodies come in three different shapes** (table above). The schema for each test states which one the endpoint uses, so a change in an error format is caught as well.
+- **A product's `category` has a different shape per endpoint:** search returns `{ id, name }`, the list adds `slug`, and the detail adds `slug` and `parent_id`. [`product.schema.ts`](api/schemas/product.schema.ts) builds the three shapes with `.extend()` from one base schema instead of copying it.
+- **Users have three views:** the register response (`RegisteredUserSchema`), the user's own profile from `/users/me` (adds `provider`, `totp_enabled`) and the admin's view (adds `enabled`, `role`, `failed_login_attempts`). Each extends the one before, so a field is defined once.
+- zod **ignores extra fields** by default. A new field the backend adds doesn't break the tests; a removed or retyped field does. To forbid a field, assert it in the test, for example `expect(created).not.toHaveProperty("password")`.
+
+#### `expectResponse`: one line per request
+
+[`fixtures/matchers.ts`](fixtures/matchers.ts) extends Playwright's `expect` with a `toMatchSchema` matcher and adds a helper that does all the standard checks at once:
+
+```ts
+const cart = await expectResponse(await cartsApi.get(cartId), 200, CartSchema);
+//    ^ typed as the schema's type: cart.cart_items[0].quantity autocompletes
+```
+
+It checks, in this order:
+
+1. the status code. The failure message contains the URL and the **response body**, so you see the API's own error.
+2. the `Content-Type` header contains `application/json`.
+3. the body matches the schema (`toMatchSchema`).
+
+Then it returns the body, typed from the schema (`z.infer<typeof CartSchema>`). If the contract is broken, the failure lists every problem:
+
+```
+Response body breaks the contract:
+✖ Too small: expected string to have exactly 26 characters
+  → at id
+✖ Invalid input: expected number, received string
+  → at price
+✖ Invalid input: expected boolean, received undefined
+  → at in_stock
+```
+
+For responses without a body (`204 No Content` from a delete), check the status directly:
+
+```ts
+expect((await cartsApi.delete(cartId)).status()).toBe(204);
+```
+
+> Import `test`, `expect` **and** `expectResponse` from `@fixtures`. The `expect` from `@playwright/test` doesn't know `toMatchSchema`. ESLint knows that `expectResponse` is an assertion (`assertFunctionNames` in [`eslint.config.mjs`](eslint.config.mjs)), so a test that only calls `expectResponse` doesn't trigger the `playwright/expect-expect` warning.
+
+#### API fixtures
+
+| Fixture         | Gives you                                                    | Cleanup                                |
+| --------------- | ------------------------------------------------------------ | -------------------------------------- |
+| `productsApi`   | `ProductsClient`                                             | —                                      |
+| `cartsApi`      | `CartsClient`                                                | —                                      |
+| `usersApi`      | `UsersClient`                                                | —                                      |
+| `customerToken` | Bearer token of a **fresh** customer (uses `registeredUser`) | The customer is deleted after the test |
+| `adminToken`    | Bearer token of the admin account                            | —                                      |
+| `cartId`        | Id of a new, empty cart                                      | Deleted after the test (best-effort)   |
+
+Fixtures are lazy: a test that doesn't ask for `adminToken` never logs in as admin. All clients use Playwright's `request` fixture, so **no browser is started** for API tests.
+
+### Walk-through: one test, line by line
+
+```ts
+// tests/api/carts.api.spec.ts
+test("a cart item can be added, updated and removed", async ({ cartsApi, cartId, api }) => {
+    // Arrange: cartId is a new empty cart (fixture); pick a product that is in stock right now
+    const product = await api.findInStockProduct("hand-tools");
+
+    await test.step("add 2", async () => {
+        // Act + check the response of the action itself
+        await expectResponse(await cartsApi.addItem(cartId, product.id, 2), 200, CartResultSchema);
+        // Check the effect: read the cart back and verify the state really changed
+        const cart = await expectResponse(await cartsApi.get(cartId), 200, CartSchema);
+        expect(cart.cart_items).toEqual([expect.objectContaining({ product_id: product.id, quantity: 2 })]);
+    });
+    // … "change quantity to 5", "remove it" follow the same pattern
+});
+// After the test, the cartId fixture deletes the cart.
+```
+
+The pattern for every write operation: **check the response of the call, then read the resource back and check its state.** A `200` alone doesn't prove the item was really saved.
+
+### Data-driven API tests
+
+The same idea as the UI tests: one typed array, one loop.
+
+**Access rules** ([`users.api.spec.ts`](tests/api/users.api.spec.ts)): who may call what. Each row becomes one test:
+
+```ts
+const ACCESS_RULES = [
+    { title: "anonymous GET /users/me", call: (users) => users.me(), status: 401 },
+    { title: "anonymous GET /users", call: (users) => users.list(), status: 401 },
+    { title: "customer GET /users (admin only)", call: (users, t) => users.list(t.customer), status: 403 },
+    { title: "admin GET /users", call: (users, t) => users.list(t.admin), status: 200 },
+];
+```
+
+`call` is a function that receives the client and both tokens, so a rule can call any endpoint as any role. To protect a new endpoint, add one row.
+
+**Invalid cart items** ([`carts.api.spec.ts`](tests/api/carts.api.spec.ts)): each row names the field the `422` must mention:
+
+```ts
+const INVALID_ADD_ITEM_CASES = [
+    { title: "quantity 0", productId: (inStockId: string) => inStockId, quantity: 0, field: "quantity" },
+    { title: "unknown product", productId: () => UNKNOWN_ID, quantity: 1, field: "product_id" },
+];
+```
+
+`productId` is a function because the real in-stock product id is only known at runtime.
+
+### What is covered
+
+| Endpoint                                                                     | Positive                                                                                                             | Negative                                                                          |
+| ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `GET /products`                                                              | Page 1 shape and counts; page 2 has no products from page 1; a page past the end is empty (`data: []`, `from: null`) | —                                                                                 |
+| `GET /products/{id}`                                                         | Same id, name and price as the list; includes `specs`                                                                | Unknown id → `404` `{message}`                                                    |
+| `GET /products/search?q=`                                                    | Every result contains the search word in name or description                                                         | —                                                                                 |
+| `POST /carts`, `GET /carts/{id}`                                             | New cart is empty                                                                                                    | Unknown id → `404`                                                                |
+| `POST /carts/{id}`, `PUT …/product/quantity`, `DELETE …/product/{productId}` | Add 2 → update to 5 → remove, state checked after each step                                                          | Quantity 0 → `422` naming `quantity`; unknown product → `422` naming `product_id` |
+| `DELETE /carts/{id}`                                                         | `204`, then `GET` → `404`                                                                                            | —                                                                                 |
+| `POST /users/register`                                                       | `201`, data echoed back, **no `password` in the response**                                                           | Same email twice → `409` naming `email`; missing fields → `422` naming each field |
+| `POST /users/login`, `GET /users/me`                                         | Token works and identifies the right user                                                                            | Wrong password → `401` `{error}`                                                  |
+| `GET /users`, `GET /users/{id}`                                              | Admin sees the paginated list and the full record (`role`, `enabled`)                                                | Anonymous → `401`; customer → `403`                                               |
+| `DELETE /users/{id}`                                                         | Admin deletes, then `GET` → `404`                                                                                    | Customer → `403`                                                                  |
+
+Unknown ids use `01AAAAAAAAAAAAAAAAAAAAAAAA`, a valid-looking ULID that doesn't exist, so the test reaches the "not found" logic instead of failing on the id format.
+
+### Adding an API test for a new endpoint
+
+Example: `GET /brands`.
+
+1. **Endpoint:** add `Brands = "/brands"` to `ApiPath` in [`config/routes.ts`](config/routes.ts).
+2. **Schema:** describe one item, using the shared blocks. Call the endpoint once (`curl $API_URL/brands`) and write down what you actually see:
+    ```ts
+    // api/schemas/brand.schema.ts
+    import { z } from "zod";
+    import { IdSchema } from "./common.schema";
+    export const BrandSchema = z.object({ id: IdSchema, name: z.string().min(1), slug: z.string().min(1) });
+    export const BrandListSchema = z.array(BrandSchema);
+    ```
+3. **Client:**
+    ```ts
+    // api/clients/brands.client.ts
+    import { ApiPath } from "@config/routes";
+    import { ApiClient } from "./api-client";
+    export class BrandsClient extends ApiClient {
+        list() {
+            return this.request.get(this.url(ApiPath.Brands), { headers: this.headers() });
+        }
+    }
+    ```
+4. **Fixture:** in [`fixtures/index.ts`](fixtures/index.ts) add `brandsApi: BrandsClient;` to the `Fixtures` type and
+    ```ts
+    brandsApi: async ({ request }, use) => {
+        await use(new BrandsClient(request));
+    },
+    ```
+5. **Spec:** `tests/api/brands.api.spec.ts`. Files in `tests/api/` are picked up by the `api` project automatically.
+    ```ts
+    import { test, expect, expectResponse } from "@fixtures";
+    import { BrandListSchema } from "@api/schemas/brand.schema";
+
+    test.describe("Brands API", { tag: ["@api", "@contract"] }, () => {
+        test("GET /brands returns all brands", async ({ brandsApi }) => {
+            const brands = await expectResponse(await brandsApi.list(), 200, BrandListSchema);
+            expect(brands.length).toBeGreaterThan(0);
+        });
+    });
+    ```
+6. **Verify:** `npm run typecheck && npm run lint && npm run test:api`. Then break the schema on purpose once (for example `name: z.number()`) to see the test fail with a clear message, and change it back.
+
+### Rules for API tests
+
+- **Clients never assert; specs always do.** Every request in a spec goes through `expectResponse` or an explicit `status()` check.
+- **Check the effect, not just the status.** After a write, read the resource back.
+- **Write the schema from real responses**, not from memory or old docs. Make a field `.nullable()` only when you've seen `null`.
+- **Every test creates its own data** through fixtures (`registeredUser`, `customerToken`, `cartId`) and never depends on another test or on fixed ids.
+- **Tag** every API `describe` with `@api` and `@contract`, and add `@negative` to error cases.
 
 ---
 
@@ -727,6 +1031,11 @@ TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 | `api`                                                                   | `ToolshopApi` REST client                                                                                    |
 | `cleanupUsers`                                                          | An array: push ids of users you create and they're deleted after the test (best-effort)                      |
 | `registeredUser`                                                        | A fresh customer (`User`, including `email` and `password`), registered via API and cleaned up automatically |
+| `productsApi`, `cartsApi`, `usersApi`                                   | Endpoint clients for API tests (raw `APIResponse`, no assertions inside)                                     |
+| `customerToken`, `adminToken`                                           | Bearer tokens: a fresh customer's (via `registeredUser`) and the admin's                                     |
+| `cartId`                                                                | Id of a new, empty cart, deleted after the test                                                              |
+
+`@fixtures` also exports `expect` (Playwright's, plus `toMatchSchema`) and `expectResponse`. See [API contract tests](#api-contract-tests).
 
 ---
 
@@ -740,7 +1049,8 @@ TEST_ENV=docker npx playwright test tests/e2e/contact.spec.ts --repeat-each=3
 - **No hard waits** (`waitForTimeout`). Wait for a response, a URL or an element state.
 - **No hard-coded live data.** Product ids and stock come from the API at runtime, and users come from the factory.
 - **Every test cleans up** what it creates. Push created user ids into `cleanupUsers`.
-- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage, `@negative` for invalid input and rejections, `@edge` for unusual-but-valid input, `@known-bug` for tests pinning an app bug, and `@stress` for opt-in load-style tests.
+- **Every test has a tag.** Use `@smoke` for critical paths, `@regression` for full coverage, `@negative` for invalid input and rejections, `@edge` for unusual-but-valid input, `@known-bug` for tests pinning an app bug, `@stress` for opt-in load-style tests, and `@api` + `@contract` for API tests.
+- **API tests:** endpoint clients return the raw response and never assert. Specs check every response with `expectResponse(response, status, Schema)`, and schemas live in `api/schemas/`. Request bodies are built in `api/payloads.ts`, never inline in a spec. See [Rules for API tests](#rules-for-api-tests).
 - **Known app bugs:** write the test for the correct behaviour, add `test.fail()` and a `bug` annotation, tag it `@known-bug`, and list the bug under [Known application bugs](#known-application-bugs).
 - **Elements without a `data-test` id** (for example `#order-confirmation`) still get their selector from an enum (`CheckoutSelector`), never from a string literal in a constructor.
 - **Wait for auto-filled forms** to reach their final values (`expect.poll`) before reading or changing them.
@@ -804,7 +1114,7 @@ flowchart LR
     2. `npm ci` and install the Playwright browsers (Chromium; all three on the nightly run)
     3. Wait for MariaDB, then create and seed the database (`php artisan migrate:fresh --seed`)
     4. Wait until the API (`/status`) and the UI answer
-    5. Run the suite with `BASE_URL` / `API_URL` pointing at the containers
+    5. Run the suite with `BASE_URL` / `API_URL` pointing at the containers. `npx playwright test` runs every project, so the `api` contract tests run in the same step as the E2E tests.
     6. Upload the HTML report; on failure also upload traces, videos and the container logs
 
 | Trigger                       | Browsers                  | Notes                                       |
@@ -844,7 +1154,7 @@ After a run, download **playwright-report** (and **test-results** when something
 | Variable         | Required | Default                                   | Purpose                                                                              |
 | ---------------- | -------- | ----------------------------------------- | ------------------------------------------------------------------------------------ |
 | `BASE_URL`       | No       | `https://practicesoftwaretesting.com`     | Web app under test                                                                   |
-| `API_URL`        | No       | `https://api.practicesoftwaretesting.com` | REST API used for setup and cleanup                                                  |
+| `API_URL`        | No       | `https://api.practicesoftwaretesting.com` | REST API used for setup, cleanup and the API tests                                   |
 | `ADMIN_EMAIL`    | **Yes**  | —                                         | Admin login (setup + user cleanup)                                                   |
 | `ADMIN_PASSWORD` | **Yes**  | —                                         | Admin login                                                                          |
 | `TEST_ENV`       | No       | —                                         | Loads `.env.<TEST_ENV>` before `.env`, for example `TEST_ENV=docker` → `.env.docker` |
@@ -873,13 +1183,16 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ### Playwright projects
 
-| Project                                | Runs                        | Depends on                      | Default session |
-| -------------------------------------- | --------------------------- | ------------------------------- | --------------- |
-| `setup`                                | `*.setup.ts`                | —                               | none            |
-| `teardown`                             | `*.teardown.ts`             | runs after `setup`'s dependants | none            |
-| `chromium`                             | everything except `@stress` | `setup`                         | customer        |
-| `stress` _(STRESS=1)_                  | only `@stress`              | —                               | none            |
-| `firefox`, `webkit` _(ALL_BROWSERS=1)_ | everything except `@stress` | `setup`                         | customer        |
+| Project                                | Runs                                         | Depends on                      | Default session |
+| -------------------------------------- | -------------------------------------------- | ------------------------------- | --------------- |
+| `setup`                                | `*.setup.ts`                                 | —                               | none            |
+| `teardown`                             | `*.teardown.ts`                              | runs after `setup`'s dependants | none            |
+| `chromium`                             | everything except `@stress` and `tests/api/` | `setup`                         | customer        |
+| `api`                                  | `tests/api/` (no browser)                    | —                               | none            |
+| `stress` _(STRESS=1)_                  | only `@stress`                               | —                               | none            |
+| `firefox`, `webkit` _(ALL_BROWSERS=1)_ | everything except `@stress` and `tests/api/` | `setup`                         | customer        |
+
+The browser projects have `testIgnore: /tests[\\/]api[\\/]/`. Without it, the API tests would run once per browser for no benefit. The `[\\/]` matches both `/` and Windows' `\`.
 
 ---
 
@@ -887,27 +1200,33 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 
 ### Tests
 
-| Symptom                                                                                                   | Cause                                                                                | Fix                                                                                                                                    |
-| --------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| `Login failed for …: Account locked, too many failed attempts`                                            | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset.                    |
-| `Login failed for …: Invalid email or password`                                                           | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                                       |
-| `Missing environment variable "ADMIN_EMAIL"`                                                              | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                                    |
-| `Register failed: {"email":["The email field is required."]}` (HTTP 422)                                  | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                                          |
-| Add-to-cart button disabled / click timeout                                                               | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                                               |
-| `response.json: No resource with given identifier found`                                                  | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                                    |
-| Many `500`s or unexpected `401`s around `hh:00` (live site)                                               | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                                     |
-| Test timeout; a page request in the trace never got a response (`-1`)                                     | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                                    |
-| `project 'setup' has unknown teardown project 'teardown'`                                                 | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                                          |
-| Both setup tests time out (`page.goto` / `apiRequestContext.post`) and every other test "did not run"     | The target site was down or unreachable; all tests depend on `setup`                 | Check the site (`curl …/status`), wait and re-run, or use the Docker copy. With `TEST_ENV=docker`, make sure `npm run toolshop:up` ran |
-| `Error: No tests found.` when running one file or `npm run test:login`                                    | The file path doesn't match a real file (for example a typo in the file name)        | `ls tests/e2e` and fix the file name or the path in the script                                                                         |
-| A login test fails with `423` / `Account locked` unexpectedly                                             | Several tests shared one account and together hit the 3-failure limit                | Use the `registeredUser` fixture so every test has its own account                                                                     |
-| `npm run typecheck`: `File '…/pages/invoices.page.ts' is not a module` (+ `implicitly has an 'any' type`) | The file is empty: it was created but its content was never saved                    | Paste the content, save (_Ctrl+S_), check with `wc -c pages/invoices.page.ts`. Consider _File → Auto Save_                             |
-| Checkout: address doesn't match the lookup, or a changed city is "accepted" anyway                        | The form was read or edited before the postcode lookup finished overwriting it       | Call `waitForAddressLookup()` (in the spec) before reading or changing the address                                                     |
-| `strict mode violation … resolved to 2 elements` on the invoice list                                      | Two invoices share one invoice number (app bug #4)                                   | Open invoices by id: `invoiceListPage.open(invoiceId)`                                                                                 |
-| A known-bug test fails with _"Expected to fail, but passed"_                                              | The app bug has been fixed                                                           | Remove `test.fail()` from that test and move the bug out of [Known application bugs](#known-application-bugs)                          |
-| `Cleanup: could not delete user … (HTTP 409)` at the end of a run                                         | The setup customer has invoices; the API won't delete users with orders              | Nothing to do: cleanup is best-effort. On Docker the database is fresh for each CI run                                                 |
-| Terminal stuck after a run, `Ctrl+C` seems ignored                                                        | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                                              |
-| Imports with `@pages/…` show red in VS Code                                                               | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                                       |
+| Symptom                                                                                                     | Cause                                                                                | Fix                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `Login failed for …: Account locked, too many failed attempts`                                              | Shared demo account locked by other users                                            | Only affects fixed accounts. The setup customer is fresh every run. For admin, wait for the demo site's next reset.                    |
+| `Login failed for …: Invalid email or password`                                                             | Wrong `.env` values, or the account was removed by a demo reset                      | Check `.env`. Accounts created by visitors don't survive resets.                                                                       |
+| `Missing environment variable "ADMIN_EMAIL"`                                                                | `.env` not created, or a CI secret is missing                                        | `cp .env.example .env` and fill it in, or add the repository secret                                                                    |
+| `Register failed: {"email":["The email field is required."]}` (HTTP 422)                                    | Request body is missing a field                                                      | Always register through `api.registerUser(user)`, which builds the typed body                                                          |
+| Add-to-cart button disabled / click timeout                                                                 | Product is out of stock on the live site                                             | Pick products with `api.findInStockProduct()`, never by fixed name or id                                                               |
+| `response.json: No resource with given identifier found`                                                    | Reading a response body after the page navigated away                                | Capture it with `page.route` + `route.fetch()`, as in `RegistrationPage.register()`                                                    |
+| Many `500`s or unexpected `401`s around `hh:00` (live site)                                                 | The demo site rebuilds its database on the hour                                      | Re-run a few minutes later, or use the Docker copy                                                                                     |
+| Test timeout; a page request in the trace never got a response (`-1`)                                       | The live site occasionally stalls page loads                                         | The local retry usually absorbs it (reported as flaky). For reliable results use `TEST_ENV=docker`.                                    |
+| `project 'setup' has unknown teardown project 'teardown'`                                                   | `teardown` project missing from config                                               | Keep the `teardown` project defined in `playwright.config.ts`                                                                          |
+| Both setup tests time out (`page.goto` / `apiRequestContext.post`) and every other test "did not run"       | The target site was down or unreachable; all tests depend on `setup`                 | Check the site (`curl …/status`), wait and re-run, or use the Docker copy. With `TEST_ENV=docker`, make sure `npm run toolshop:up` ran |
+| `Error: No tests found.` when running one file or `npm run test:login`                                      | The file path doesn't match a real file (for example a typo in the file name)        | `ls tests/e2e` and fix the file name or the path in the script                                                                         |
+| A login test fails with `423` / `Account locked` unexpectedly                                               | Several tests shared one account and together hit the 3-failure limit                | Use the `registeredUser` fixture so every test has its own account                                                                     |
+| `npm run typecheck`: `File '…/pages/invoices.page.ts' is not a module` (+ `implicitly has an 'any' type`)   | The file is empty: it was created but its content was never saved                    | Paste the content, save (_Ctrl+S_), check with `wc -c pages/invoices.page.ts`. Consider _File → Auto Save_                             |
+| Checkout: address doesn't match the lookup, or a changed city is "accepted" anyway                          | The form was read or edited before the postcode lookup finished overwriting it       | Call `waitForAddressLookup()` (in the spec) before reading or changing the address                                                     |
+| `strict mode violation … resolved to 2 elements` on the invoice list                                        | Two invoices share one invoice number (app bug #4)                                   | Open invoices by id: `invoiceListPage.open(invoiceId)`                                                                                 |
+| A known-bug test fails with _"Expected to fail, but passed"_                                                | The app bug has been fixed                                                           | Remove `test.fail()` from that test and move the bug out of [Known application bugs](#known-application-bugs)                          |
+| `Cleanup: could not delete user … (HTTP 409)` at the end of a run                                           | The setup customer has invoices; the API won't delete users with orders              | Nothing to do: cleanup is best-effort. On Docker the database is fresh for each CI run                                                 |
+| Terminal stuck after a run, `Ctrl+C` seems ignored                                                          | An HTML report server is still running, or VS Code used `Ctrl+C` to copy a selection | Click in the terminal to clear the selection, press `Ctrl+C` again, or close the terminal                                              |
+| Imports with `@pages/…` show red in VS Code                                                                 | Editor hasn't reloaded `tsconfig.json`                                               | _Ctrl+Shift+P → "TypeScript: Restart TS Server"_                                                                                       |
+| API test: `Response body breaks the contract: ✖ … → at <field>`                                             | The response doesn't match the schema: a field is missing, renamed or has a new type | Compare with the real response (`curl`). A backend change → report it; a wrong schema → fix the schema in `api/schemas/`               |
+| API test fails on the status (`Expected: 200, Received: 422`); the message starts with the URL and the body | The request was rejected; the body names the field                                   | Read the body in the message. Check the client's request body and `api/payloads.ts`                                                    |
+| `Property 'toMatchSchema' does not exist on type …`                                                         | `expect` was imported from `@playwright/test`                                        | Import `test`, `expect`, `expectResponse` from `@fixtures`                                                                             |
+| `Cannot find module 'zod'`                                                                                  | Dependencies not installed after pulling                                             | `npm ci`                                                                                                                               |
+| `Cleanup: could not delete user … (HTTP 500)` after _"an admin can delete a user"_                          | The test already deleted that user; the safety-net cleanup tries again               | Nothing to do: the warning is expected and cleanup is best-effort                                                                      |
+| API tests run 2–3 times, once per browser project                                                           | `testIgnore` for `tests/api/` is missing from a browser project                      | Add `testIgnore: /tests[\\/]api[\\/]/` to every browser project in `playwright.config.ts`                                              |
 
 ### CI and Docker
 
@@ -933,7 +1252,9 @@ Precedence is: **real environment variables > `.env.<TEST_ENV>` > `.env` > defau
 - [x] Checkout flow: cart → address → payment → invoice, all five payment methods, validation, known-bug tests
 - [ ] Report the four [known application bugs](#known-application-bugs) to the app's maintainers
 - [ ] Known-bug test for bug #3 (empty card holder name only gets "Unknown error")
-- [ ] API test suite (`tests/api/`) for contract checks of `/products`, `/carts`, `/users` and `/invoices`, including the address-matches-postcode rule
+- [x] API contract tests (`tests/api/`) for `/products`, `/carts` and `/users`, with zod schemas and access rules
+- [ ] API contract tests for `/invoices`, including the address-matches-postcode rule, and `/payment/check`
+- [ ] Schemas for `/categories` and `/brands`
 - [ ] Guest checkout (`POST /invoices/guest`) and checkout with several products and quantities
 - [ ] Admin scenarios (product and order management) using the saved admin session
 - [ ] Visual regression snapshots for key pages

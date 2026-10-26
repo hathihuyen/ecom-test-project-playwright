@@ -4,6 +4,9 @@ import { RegistrationPage } from "@pages/registration.page";
 import { ProductListPage } from "@pages/product-list.page";
 import { ProductDetailPage } from "@pages/product-detail.page";
 import { ToolshopApi } from "@api/toolshop.api";
+import { ProductsClient } from "@api/clients/products.client";
+import { CartsClient } from "@api/clients/carts.client";
+import { UsersClient } from "@api/clients/users.client";
 import { env } from "@config/env";
 import { createUser } from "@data/factory";
 import { User } from "@models/user";
@@ -23,6 +26,16 @@ type Fixtures = {
     checkoutPage: CheckoutPage;
     invoiceListPage: InvoiceListPage;
     invoiceDetailPage: InvoiceDetailPage;
+    /** For API testing */
+    productsApi: ProductsClient;
+    cartsApi: CartsClient;
+    usersApi: UsersClient;
+    /** Bearer token of `registeredUser`. */
+    customerToken: string;
+    /** Bearer token of the admin account. */
+    adminToken: string;
+    /** Id of a new, empty cart; deleted after the test. */
+    cartId: string;
 };
 
 export const test = base.extend<Fixtures>({
@@ -67,9 +80,29 @@ export const test = base.extend<Fixtures>({
     invoiceDetailPage: async ({ page }, use) => {
         await use(new InvoiceDetailPage(page));
     },
+    productsApi: async ({ request }, use) => {
+        await use(new ProductsClient(request));
+    },
+    cartsApi: async ({ request }, use) => {
+        await use(new CartsClient(request));
+    },
+    usersApi: async ({ request }, use) => {
+        await use(new UsersClient(request));
+    },
+    customerToken: async ({ api, registeredUser }, use) => {
+        await use(await api.login(registeredUser.email, registeredUser.password));
+    },
+    adminToken: async ({ api }, use) => {
+        await use(await api.login(env.adminEmail, env.adminPassword));
+    },
+    cartId: async ({ cartsApi }, use) => {
+        const { id } = await (await cartsApi.create()).json();
+        await use(id);
+        await cartsApi.delete(id); // best-effort: a test may already have deleted it
+    },
 });
 
-export { expect } from "@playwright/test";
+export { expect, expectResponse } from "./matchers";
 
 /**
  * No longer need an adminAuthPage fixture. Put test.use({ storageState: AUTH_FILES.admin });

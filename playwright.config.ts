@@ -57,6 +57,7 @@ export default defineConfig({
         },
         {
             name: "chromium",
+            testIgnore: /tests[\\/]api[\\/]/,
             dependencies: ["setup"], // Run setup first
             grepInvert: /@stress/,
             use: {
@@ -64,18 +65,24 @@ export default defineConfig({
                 storageState: AUTH_FILES.customer1, // Load auth state. the setup project runs once before chromium, and each file is written exactly once. Every test reads the file and nothing writes to it during the run, so there is no race.
             },
         },
+        {
+            name: "api", // Contract tests: no browser, no login state
+            testDir: "./tests/api",
+        },
         // Opt-in projects: `npm run test:stress`, or ALL_BROWSERS=1 for a nightly cross-browser run
         ...(process.env.STRESS ? [{ name: "stress", grep: /@stress/, use: { ...devices["Desktop Chrome"] } }] : []),
         ...(process.env.ALL_BROWSERS
             ? [
                   {
                       name: "firefox",
+                      testIgnore: /tests[\\/]api[\\/]/,
                       dependencies: ["setup"],
                       grepInvert: /@stress/,
                       use: { ...devices["Desktop Firefox"], storageState: AUTH_FILES.customer1 },
                   },
                   {
                       name: "webkit",
+                      testIgnore: /tests[\\/]api[\\/]/,
                       dependencies: ["setup"],
                       grepInvert: /@stress/,
                       use: { ...devices["Desktop Safari"], storageState: AUTH_FILES.customer1 },

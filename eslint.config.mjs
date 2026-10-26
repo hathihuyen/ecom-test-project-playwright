@@ -29,7 +29,7 @@ export default defineConfig(
         files: ["tests/**/*.ts"],
         extends: [playwright.configs["flat/recommended"]],
         rules: {
-            "playwright/expect-expect": ["warn", { assertFunctionNames: ["loginAs"] }],
+            "playwright/expect-expect": ["warn", { assertFunctionNames: ["loginAs", "expectResponse"] }],
         },
     },
 

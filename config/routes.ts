@@ -14,4 +14,9 @@ export enum ApiPath {
     PaymentCheck = "/payment/check",
     Invoices = "/invoices",
     PostcodeLookup = "/postcode-lookup",
+    Me = "/users/me",
+    Users = "/users",
+    Products = "/products",
+    ProductSearch = "/products/search",
+    Carts = "/carts",
 }
